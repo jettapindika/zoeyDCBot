@@ -321,6 +321,26 @@ func (m *Manager) Remove(guildID string, pos int) (Track, bool) {
 	return t, true
 }
 
+// Move moves a track from one 1-based position to another. Returns the
+// moved track and true if both positions are valid.
+func (m *Manager) Move(guildID string, from, to int) (Track, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p := m.player(guildID)
+	n := len(p.Queue)
+	if from < 1 || from > n || to < 1 || to > n || from == to {
+		return Track{}, false
+	}
+	idx := from - 1
+	t := p.Queue[idx]
+	// Remove from old position
+	p.Queue = append(p.Queue[:idx], p.Queue[idx+1:]...)
+	// Insert at new position
+	toIdx := to - 1
+	p.Queue = append(p.Queue[:toIdx], append([]Track{t}, p.Queue[toIdx:]...)...)
+	return t, true
+}
+
 func (m *Manager) Skip(guildID string) (*Track, bool) { return m.StartNext(guildID) }
 
 func (m *Manager) Stop(guildID string) int {
@@ -426,7 +446,7 @@ func (m *Manager) UpdateNowPlaying(guildID string, patch func(*Track)) {
 // FormatQueue renders the queue as a Discord-friendly string, including each
 // track's duration and the total expected runtime. It caps the output to stay
 // well under Discord's 4096-char embed description limit.
-func FormatQueue(q []Track, now *Track, paused bool) string {
+func FormatQueue(q []Track, now *Track, paused bool, page int) string {
 	var sb strings.Builder
 	if now != nil {
 		status := "▶️"
@@ -442,18 +462,38 @@ func FormatQueue(q []Track, now *Track, paused bool) string {
 		}
 		return sb.String()
 	}
-	sb.WriteString("**Up Next:**\n")
-	// Show at most 10 entries to stay well under the 4096-char description cap.
-	const maxShown = 10
+
+	const perPage = 10
+	totalPages := (len(q) + perPage - 1) / perPage
+	if page < 1 {
+		page = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	start := (page - 1) * perPage
+	end := start + perPage
+	if end > len(q) {
+		end = len(q)
+	}
+
+	if totalPages > 1 {
+		sb.WriteString(fmt.Sprintf("**Up Next** (page %d/%d):\n", page, totalPages))
+	} else {
+		sb.WriteString("**Up Next:**\n")
+	}
+
 	var eta float64
 	if now != nil {
 		eta = now.Duration
 	}
-	for i, t := range q {
-		if i >= maxShown {
-			sb.WriteString(fmt.Sprintf("…and **%d** more\n", len(q)-maxShown))
-			break
-		}
+	// Add durations of tracks before the current page to the ETA.
+	for i := 0; i < start; i++ {
+		eta += q[i].Duration
+	}
+	for i := start; i < end; i++ {
+		t := q[i]
 		line := fmt.Sprintf("`%2d.` %s `[%s]`", i+1, t.MarkdownLink(), FormatDuration(t.Duration))
 		if eta > 0 {
 			line += fmt.Sprintf(" · starts in ~%s", FormatDuration(eta))
@@ -461,9 +501,14 @@ func FormatQueue(q []Track, now *Track, paused bool) string {
 		sb.WriteString(line + "\n")
 		eta += t.Duration
 	}
+
 	total := TotalDuration(q, now)
-	sb.WriteString(fmt.Sprintf("\n**%d** in queue · total length **%s**", len(q), FormatDuration(total)))
-	// Safety: if we somehow exceeded the limit, truncate.
+	footer := fmt.Sprintf("\n**%d** in queue · total length **%s**", len(q), FormatDuration(total))
+	if totalPages > 1 {
+		footer += fmt.Sprintf(" · page %d/%d", page, totalPages)
+	}
+	sb.WriteString(footer)
+
 	result := sb.String()
 	const maxLen = 4000
 	if len(result) > maxLen {

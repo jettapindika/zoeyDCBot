@@ -507,9 +507,14 @@ func (b *Bot) cmdQueue(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		b.respondEphemeralEmbed(s, i, neutralEmbed("📭 Queue Empty", "Nothing is playing and the queue is empty."))
 		return
 	}
+	data := i.ApplicationCommandData()
+	page := int(admin.IntOption(data.Options, "page", 1))
+	if page < 1 {
+		page = 1
+	}
 	embed := &discordgo.MessageEmbed{
 		Title:       "🎵 Music Queue",
-		Description: music.FormatQueue(q, now, paused),
+		Description: music.FormatQueue(q, now, paused, page),
 		Color:       colorBlue,
 	}
 	b.respondEphemeralEmbed(s, i, embed)
@@ -915,4 +920,28 @@ func (b *Bot) cmdLyrics(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	}
 
 	b.followUpEmbed(s, i, embed)
+}
+
+func (b *Bot) cmdMove(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	if !b.cfg.MusicEnabled {
+		b.respondEphemeralEmbed(s, i, warnEmbed("Music Disabled", "Music commands are disabled."))
+		return
+	}
+	data := i.ApplicationCommandData()
+	from := admin.IntOption(data.Options, "from", 0)
+	to := admin.IntOption(data.Options, "to", 0)
+
+	if from < 1 || to < 1 {
+		b.respondEphemeralEmbed(s, i, warnEmbed("Invalid Position", "Positions must be at least 1. Use `/queue` to see positions."))
+		return
+	}
+
+	track, ok := b.music.Move(i.GuildID, int(from), int(to))
+	if !ok {
+		queueLen := b.music.Len(i.GuildID)
+		b.respondEphemeralEmbed(s, i, warnEmbed("Invalid Move", fmt.Sprintf("Check positions (queue has %d tracks). Use `/queue` to see valid positions.", queueLen)))
+		return
+	}
+
+	b.respondEphemeralEmbed(s, i, successEmbed("📝 Moved", fmt.Sprintf("Moved **%s** from position %d to position %d.", track.Display(), from, to)))
 }

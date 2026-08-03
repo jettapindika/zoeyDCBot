@@ -340,7 +340,7 @@ func (b *Bot) runPrefixMusicAction(s *discordgo.Session, m *discordgo.MessageCre
 		}
 		_, _ = s.ChannelMessageSendEmbed(m.ChannelID, &discordgo.MessageEmbed{
 			Title:       "🎵 Music Queue",
-			Description: music.FormatQueue(q, now, paused),
+			Description: music.FormatQueue(q, now, paused, 1),
 			Color:       colorBlue,
 		})
 	case "nowplaying":
@@ -736,6 +736,8 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			b.cmdRemove(s, i)
 		case "lyrics":
 			b.cmdLyrics(s, i)
+		case "move":
+			b.cmdMove(s, i)
 		default:
 			b.respondEphemeralEmbed(s, i, warnEmbed("Unknown Command", "This command is not recognised."))
 		}

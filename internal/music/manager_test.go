@@ -150,7 +150,7 @@ func TestSetNowPlaying(t *testing.T) {
 }
 
 func TestFormatQueueEmpty(t *testing.T) {
-	result := FormatQueue(nil, nil, false)
+	result := FormatQueue(nil, nil, false, 1)
 	if result != "📭 The queue is empty." {
 		t.Fatalf("unexpected format for empty queue: %q", result)
 	}
@@ -158,7 +158,7 @@ func TestFormatQueueEmpty(t *testing.T) {
 
 func TestFormatQueueWithNowPlaying(t *testing.T) {
 	now := &Track{Title: "My Song"}
-	result := FormatQueue(nil, now, false)
+	result := FormatQueue(nil, now, false, 1)
 	if result == "" {
 		t.Fatal("expected non-empty format")
 	}
@@ -166,7 +166,7 @@ func TestFormatQueueWithNowPlaying(t *testing.T) {
 
 func TestFormatQueueWithNowPlayingPaused(t *testing.T) {
 	now := &Track{Title: "My Song"}
-	result := FormatQueue(nil, now, true)
+	result := FormatQueue(nil, now, true, 1)
 	if result == "" {
 		t.Fatal("expected non-empty format for paused")
 	}
@@ -177,7 +177,7 @@ func TestFormatQueueWithItems(t *testing.T) {
 		{Title: "Song A"},
 		{Title: "Song B"},
 	}
-	result := FormatQueue(q, nil, false)
+	result := FormatQueue(q, nil, false, 1)
 	if result == "" {
 		t.Fatal("expected non-empty format")
 	}

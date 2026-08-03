@@ -27,48 +27,9 @@ Read `docs/feature-matrix.md` for the full feature inventory and status.
 - `go test -race -count=50 ./internal/recoverutil/` ✅ (0 failures)
 - `go test -race -count=50 ./internal/music/` ✅ (0 failures)
 
-**Deferred / proposed:** (future cycles)
-- Cycle 2: `/loop` `/repeat` (track + queue), `/shuffle`, `/remove <position>`
-- Cycle 3: `/lyrics`
-- Cycle 4: Queue pagination
-- Cycle 5: AutoMod (spam protection, link filter, word filter)
-- Cycle 6: Message logging (deleted/edited/purged)
-- Cycle 7: Reaction roles
-- Cycle 8: Welcome/goodbye messages
-- Cycle 9: Starboard
-- Cycle 10: SQLite persistence layer
-- Cycle 11: Live Rich Presence
-- Cycle 12: Voice channel rename
-
 ---
 
 ## Cycle 2 — 2026-08-04
-
-**Researched:** Catalogued music bot features from Jockie, FredBoat, and Rythm — loop/repeat (track + queue), shuffle, remove-from-queue, move-in-queue, lyrics, DJ role, vote skip, seek, audio filters. Prioritized loop, shuffle, and remove as the highest-value, self-contained queue management features.
-
-**Implemented:** `/lyrics` command.
-- Created `internal/lyrics/` package with `Client.Search(ctx, track, artist)` querying lrclib.net
-- `/lyrics [query]` — if no query provided, uses the currently playing track's title + artist
-- Shows lyrics in a green embed with artist — track title, album in footer
-- Handles instrumental tracks (shows "🎼 This track is instrumental")
-- Truncates lyrics to 4000 chars (Discord embed limit is 4096) with ellipsis
-- Acknowledges interaction immediately, then follows up with results (avoids 3-second timeout)
-
-**Verification level:** Build + vet + test
-- `go build ./…` ✅
-- `go vet ./…` ✅
-- `go test ./…` ✅ (all packages)
-
-**Deferred / proposed:** (future cycles)
-- Cycle 4: Queue pagination, `/move <from> <to>`
-- Cycle 5: AutoMod (spam protection, link filter, word filter)
-- Cycle 6: Message logging (deleted/edited/purged)
-- Cycle 7: Reaction roles
-- Cycle 8: Welcome/goodbye messages
-- Cycle 9: Starboard
-- Cycle 10: SQLite persistence layer
-- Cycle 11: Live Rich Presence
-- Cycle 12: Voice channel rename
 
 **Researched:** Catalogued music bot features from Jockie, FredBoat, and Rythm — loop/repeat (track + queue), shuffle, remove-from-queue, move-in-queue, lyrics, DJ role, vote skip, seek, audio filters. Prioritized loop, shuffle, and remove as the highest-value, self-contained queue management features.
 
@@ -77,25 +38,12 @@ Read `docs/feature-matrix.md` for the full feature inventory and status.
 - `/shuffle` — Fisher-Yates shuffle of the queued tracks (not the currently playing one). Uses a per-Manager `rand.Rand` to avoid global lock contention. Returns count of shuffled tracks.
 - `/remove <position>` — removes a track at a 1-based position from the queue. Validates position bounds, returns the removed track name in the confirmation embed.
 - Refactored `advanceOrFinish` to check loop mode before deciding to auto-advance or stop. `tryStartPlayback` now calls `Advance()` instead of `StartNext()` so loop logic is centralized.
-- All three commands registered as slash commands with proper options (choices for `/loop`, integer min for `/remove`).
 
 **Verification level:** 50-pass race detector
 - `go build ./…` ✅
 - `go vet ./…` ✅
 - `go test ./…` ✅ (all packages)
 - `go test -race -count=50 ./internal/music/` ✅ (0 failures)
-
-**Deferred / proposed:** (future cycles)
-- Cycle 3: `/lyrics`
-- Cycle 4: Queue pagination, `/move <from> <to>`
-- Cycle 5: AutoMod (spam protection, link filter, word filter)
-- Cycle 6: Message logging (deleted/edited/purged)
-- Cycle 7: Reaction roles
-- Cycle 8: Welcome/goodbye messages
-- Cycle 9: Starboard
-- Cycle 10: SQLite persistence layer
-- Cycle 11: Live Rich Presence
-- Cycle 12: Voice channel rename
 
 ---
 
@@ -116,8 +64,26 @@ Read `docs/feature-matrix.md` for the full feature inventory and status.
 - `go vet ./…` ✅
 - `go test ./…` ✅ (all packages)
 
-**Deferred / proposed:** (future cycles)
-- Cycle 4: Queue pagination, `/move <from> <to>`
+---
+
+## Cycle 4 — 2026-08-04
+
+**Researched:** Queue pagination and move-in-queue are standard features in Jockie, FredBoat, and Rythm. The existing `FormatQueue` showed only 10 tracks with "…and N more" — no way to see beyond the first page.
+
+**Implemented:** Queue pagination + `/move` command.
+- `FormatQueue` now accepts a `page` parameter (10 tracks per page). Shows "page X/Y" in the footer when multiple pages exist. ETA calculation accounts for tracks before the current page.
+- `/queue [page]` — optional integer page parameter, defaults to 1
+- `/move <from> <to>` — moves a track from one 1-based position to another. Added `Manager.Move()` method with bounds validation. Both positions must be valid and different.
+
+**Verification level:** Build + vet + test
+- `go build ./…` ✅
+- `go vet ./…` ✅
+- `go test ./…` ✅ (all packages)
+
+---
+
+## Backlog (future cycles)
+
 - Cycle 5: AutoMod (spam protection, link filter, word filter)
 - Cycle 6: Message logging (deleted/edited/purged)
 - Cycle 7: Reaction roles

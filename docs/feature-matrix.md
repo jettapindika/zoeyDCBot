@@ -70,7 +70,7 @@ Last updated: 2026-08-04 (Cycle 1)
 | `/shuffle` | ✅ | Fisher-Yates shuffle of queued tracks |
 | `/loop <mode>` | ✅ | off / track (🔂) / queue (🔁); loop-aware `Advance()` |
 | `/remove <position>` | ✅ | 1-based position, validated against queue bounds |
-| `/move <from> <to>` | ❌ | Not implemented |
+| `/move <from> <to>` | ✅ | Move track to a different queue position |
 | `/jump <position>` | ❌ | Not implemented |
 | `/forward` / `/rewind` | ❌ | Not implemented |
 | `/lyrics` | ✅ | lrclib.net API, auto-uses current track, instrumental detection |
@@ -127,7 +127,7 @@ Last updated: 2026-08-04 (Cycle 1)
 | Ephemeral vs public responses | ✅ | Configured per command |
 | Button components | ⚠️ | Fork supports types; only used in version footer |
 | Select menu components | ⚠️ | Fork supports types; not used |
-| Pagination (queue, help) | ❌ | Not implemented |
+| Pagination (queue, help) | ⚠️ | Queue pagination implemented (10/page); help not paginated |
 | Localization (multi-language) | ❌ | Not planned |
 | Welcome/goodbye messages | ❌ | Not implemented |
 | Reaction roles | ❌ | Not implemented |

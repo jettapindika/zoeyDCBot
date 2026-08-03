@@ -74,7 +74,7 @@ func (b *Bot) commandDefinitions() []*discordgo.ApplicationCommand {
 	if b.cfg.MusicEnabled {
 		cmds = append(cmds,
 			&discordgo.ApplicationCommand{Name: "play", Description: "Queue a song/query and join your voice channel", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString, Name: "query", Description: "URL or search query (YouTube, Spotify, SoundCloud)", Required: true}}},
-			&discordgo.ApplicationCommand{Name: "queue", Description: "Show the music queue"},
+			&discordgo.ApplicationCommand{Name: "queue", Description: "Show the music queue", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionInteger, Name: "page", Description: "Page number (10 tracks per page)", Required: false, MinValue: floatPtr(1)}}},
 			&discordgo.ApplicationCommand{Name: "skip", Description: "Skip the current track"},
 			&discordgo.ApplicationCommand{Name: "stop", Description: "Stop playback and clear the queue"},
 			&discordgo.ApplicationCommand{Name: "pause", Description: "Mark playback paused"},
@@ -86,6 +86,7 @@ func (b *Bot) commandDefinitions() []*discordgo.ApplicationCommand {
 			&discordgo.ApplicationCommand{Name: "shuffle", Description: "Shuffle the music queue"},
 			&discordgo.ApplicationCommand{Name: "remove", Description: "Remove a track from the queue by position", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionInteger, Name: "position", Description: "Position in queue (1-based, see /queue)", Required: true, MinValue: floatPtr(1)}}},
 			&discordgo.ApplicationCommand{Name: "lyrics", Description: "Show lyrics for the current track or a search query", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString, Name: "query", Description: "Song to search (defaults to current track)", Required: false}}},
+			&discordgo.ApplicationCommand{Name: "move", Description: "Move a track to a different position in the queue", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionInteger, Name: "from", Description: "Current position (1-based, see /queue)", Required: true, MinValue: floatPtr(1)}, {Type: discordgo.ApplicationCommandOptionInteger, Name: "to", Description: "New position (1-based)", Required: true, MinValue: floatPtr(1)}}},
 		)
 	}
 	return cmds
