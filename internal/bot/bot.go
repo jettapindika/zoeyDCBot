@@ -725,6 +725,12 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			b.cmdNowPlaying(s, i)
 		case "volume":
 			b.cmdVolume(s, i)
+		case "loop":
+			b.cmdLoop(s, i)
+		case "shuffle":
+			b.cmdShuffle(s, i)
+		case "remove":
+			b.cmdRemove(s, i)
 		default:
 			b.respondEphemeralEmbed(s, i, warnEmbed("Unknown Command", "This command is not recognised."))
 		}

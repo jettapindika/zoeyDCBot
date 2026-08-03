@@ -274,8 +274,8 @@ func (b *Bot) tryStartPlayback(guildID, textChannelID string, vc *discordgo.Voic
 		return
 	}
 
-	// Pop next track
-	track, ok := b.music.StartNext(guildID)
+	// Pop next track (Advance handles loop modes)
+	track, ok := b.music.Advance(guildID)
 	if !ok {
 		log.Debug("queue empty, nothing to play")
 		return
@@ -367,19 +367,27 @@ func (b *Bot) advanceOrFinish(guildID, textChannelID string, vc *discordgo.Voice
 		return
 	}
 
-	if b.music.HasNext(guildID) {
-		time.Sleep(300 * time.Millisecond)
-		b.voiceMu.Lock()
-		currentVC := b.voice[guildID]
-		b.voiceMu.Unlock()
-		if currentVC != nil && currentVC.Ready {
-			recoverutil.GuardGo("tryStartPlayback", func() { b.tryStartPlayback(guildID, textChannelID, currentVC) })
-		} else {
-			log.Warn("voice connection gone, stopping auto-advance")
-			b.music.ClearNowPlaying(guildID)
-		}
-	} else {
+	// For LoopTrack, Advance returns the same track to replay.
+	// For LoopQueue, it rotates the queue and returns the next track.
+	// For LoopOff, it pops the next track or returns false if empty.
+	// tryStartPlayback calls Advance internally, so we just need to check
+	// whether there's anything to advance to.
+	hasNext := b.music.HasNext(guildID)
+	loopMode := b.music.GetLoopMode(guildID)
+	if !hasNext && loopMode == music.LoopOff {
 		log.Info("queue empty after track finished")
+		b.music.ClearNowPlaying(guildID)
+		return
+	}
+
+	time.Sleep(300 * time.Millisecond)
+	b.voiceMu.Lock()
+	currentVC := b.voice[guildID]
+	b.voiceMu.Unlock()
+	if currentVC != nil && currentVC.Ready {
+		recoverutil.GuardGo("tryStartPlayback", func() { b.tryStartPlayback(guildID, textChannelID, currentVC) })
+	} else {
+		log.Warn("voice connection gone, stopping auto-advance")
 		b.music.ClearNowPlaying(guildID)
 	}
 }
@@ -752,4 +760,78 @@ func (b *Bot) cmdVolume(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	b.player.SetVolume(i.GuildID, volFloat)
 
 	b.respondEphemeralEmbed(s, i, successEmbed("🔊 Volume Set", fmt.Sprintf("Volume set to **%d%%**", vol)))
+}
+
+func (b *Bot) cmdLoop(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	if !b.cfg.MusicEnabled {
+		b.respondEphemeralEmbed(s, i, warnEmbed("Music Disabled", "Music commands are disabled."))
+		return
+	}
+	data := i.ApplicationCommandData()
+	modeStr := admin.StringOption(data.Options, "mode")
+	if modeStr == "" {
+		modeStr = "off"
+	}
+
+	var mode music.LoopMode
+	var label, emoji string
+	switch modeStr {
+	case "track":
+		mode = music.LoopTrack
+		label = "Track"
+		emoji = "🔂"
+	case "queue":
+		mode = music.LoopQueue
+		label = "Queue"
+		emoji = "🔁"
+	default:
+		mode = music.LoopOff
+		label = "Off"
+		emoji = "➡️"
+	}
+
+	b.music.SetLoopMode(i.GuildID, mode)
+
+	desc := fmt.Sprintf("Repeat mode set to **%s**.", label)
+	if mode == music.LoopOff {
+		desc = "Repeat mode **disabled**."
+	}
+	b.respondEphemeralEmbed(s, i, successEmbed(fmt.Sprintf("%s Loop %s", emoji, label), desc))
+}
+
+func (b *Bot) cmdShuffle(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	if !b.cfg.MusicEnabled {
+		b.respondEphemeralEmbed(s, i, warnEmbed("Music Disabled", "Music commands are disabled."))
+		return
+	}
+
+	n := b.music.Shuffle(i.GuildID)
+	if n < 2 {
+		b.respondEphemeralEmbed(s, i, warnEmbed("🔀 Nothing to Shuffle", "Need at least 2 tracks in the queue to shuffle."))
+		return
+	}
+
+	b.respondEphemeralEmbed(s, i, successEmbed("🔀 Shuffled", fmt.Sprintf("Shuffled **%d** tracks in the queue.", n)))
+}
+
+func (b *Bot) cmdRemove(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	if !b.cfg.MusicEnabled {
+		b.respondEphemeralEmbed(s, i, warnEmbed("Music Disabled", "Music commands are disabled."))
+		return
+	}
+	data := i.ApplicationCommandData()
+	pos := admin.IntOption(data.Options, "position", 0)
+
+	if pos < 1 {
+		b.respondEphemeralEmbed(s, i, warnEmbed("Invalid Position", "Position must be at least 1. Use `/queue` to see positions."))
+		return
+	}
+
+	track, ok := b.music.Remove(i.GuildID, int(pos))
+	if !ok {
+		b.respondEphemeralEmbed(s, i, warnEmbed("Invalid Position", fmt.Sprintf("Position %d is not in the queue. Use `/queue` to see valid positions.", pos)))
+		return
+	}
+
+	b.respondEphemeralEmbed(s, i, successEmbed("🗑️ Removed", fmt.Sprintf("Removed **%s** from position %d.", track.Display(), pos)))
 }

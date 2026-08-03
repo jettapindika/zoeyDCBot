@@ -67,9 +67,9 @@ Last updated: 2026-08-04 (Cycle 1)
 | `/leave` | ✅ | Disconnects + clears queue |
 | `/volume` | ✅ | Per-guild volume |
 | `/seek` | ❌ | Not implemented |
-| `/shuffle` | ❌ | Not implemented |
-| `/repeat` / `/loop` | ❌ | Not implemented |
-| `/remove <position>` | ❌ | Not implemented |
+| `/shuffle` | ✅ | Fisher-Yates shuffle of queued tracks |
+| `/loop <mode>` | ✅ | off / track (🔂) / queue (🔁); loop-aware `Advance()` |
+| `/remove <position>` | ✅ | 1-based position, validated against queue bounds |
 | `/move <from> <to>` | ❌ | Not implemented |
 | `/jump <position>` | ❌ | Not implemented |
 | `/forward` / `/rewind` | ❌ | Not implemented |

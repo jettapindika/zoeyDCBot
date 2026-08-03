@@ -5,6 +5,7 @@ package music
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -77,6 +78,28 @@ type GuildPlayer struct {
 	Queue      []Track
 	NowPlaying *Track
 	Paused     bool
+	// LoopMode controls repeat behaviour: LoopOff, LoopTrack, LoopQueue.
+	LoopMode LoopMode
+}
+
+// LoopMode controls how the queue repeats.
+type LoopMode int
+
+const (
+	LoopOff   LoopMode = iota // no repeat (default)
+	LoopTrack                 // repeat the current track
+	LoopQueue                 // repeat the entire queue
+)
+
+func (l LoopMode) String() string {
+	switch l {
+	case LoopTrack:
+		return "track"
+	case LoopQueue:
+		return "queue"
+	default:
+		return "off"
+	}
 }
 
 // Manager stores all guild queues.
@@ -84,13 +107,18 @@ type Manager struct {
 	mu       sync.Mutex
 	guilds   map[string]*GuildPlayer
 	maxQueue int
+	rng      *rand.Rand
 }
 
 func NewManager(maxQueue int) *Manager {
 	if maxQueue < 1 {
 		maxQueue = 1
 	}
-	return &Manager{guilds: make(map[string]*GuildPlayer), maxQueue: maxQueue}
+	return &Manager{
+		guilds:   make(map[string]*GuildPlayer),
+		maxQueue: maxQueue,
+		rng:      rand.New(rand.NewSource(time.Now().UnixNano())),
+	}
 }
 
 func (m *Manager) player(guildID string) *GuildPlayer {
@@ -190,6 +218,109 @@ func (m *Manager) StartNext(guildID string) (*Track, bool) {
 	return &t, true
 }
 
+// Advance handles the transition from the current track to the next, respecting
+// the loop mode. It is called by the bot layer when a track finishes.
+//
+//   - LoopTrack: keeps NowPlaying unchanged and returns it so the caller can
+//     replay the same track. The queue is not touched.
+//   - LoopQueue: moves NowPlaying to the back of the queue, then pops the front
+//     as the new NowPlaying. If the queue had only one track, the same track
+//     becomes NowPlaying again.
+//   - LoopOff: clears NowPlaying and pops the next track from the queue.
+//
+// Returns the track to play next and true if there is one.
+func (m *Manager) Advance(guildID string) (*Track, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p := m.player(guildID)
+
+	switch p.LoopMode {
+	case LoopTrack:
+		if p.NowPlaying == nil {
+			return nil, false
+		}
+		// Replay the same track. Don't touch the queue.
+		t := *p.NowPlaying
+		p.Paused = false
+		return &t, true
+
+	case LoopQueue:
+		if p.NowPlaying != nil {
+			// Re-queue the current track at the end.
+			p.Queue = append(p.Queue, *p.NowPlaying)
+		}
+		if len(p.Queue) == 0 {
+			p.NowPlaying = nil
+			p.Paused = false
+			return nil, false
+		}
+		t := p.Queue[0]
+		p.Queue = p.Queue[1:]
+		p.NowPlaying = &t
+		p.Paused = false
+		return &t, true
+
+	default: // LoopOff
+		if len(p.Queue) == 0 {
+			p.NowPlaying = nil
+			p.Paused = false
+			return nil, false
+		}
+		t := p.Queue[0]
+		p.Queue = p.Queue[1:]
+		p.NowPlaying = &t
+		p.Paused = false
+		return &t, true
+	}
+}
+
+// SetLoopMode sets the repeat mode for a guild.
+func (m *Manager) SetLoopMode(guildID string, mode LoopMode) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.player(guildID).LoopMode = mode
+}
+
+// GetLoopMode returns the current repeat mode for a guild.
+func (m *Manager) GetLoopMode(guildID string) LoopMode {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.player(guildID).LoopMode
+}
+
+// Shuffle randomly reorders the queued tracks (not the currently playing one).
+// Returns the number of tracks shuffled.
+func (m *Manager) Shuffle(guildID string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p := m.player(guildID)
+	n := len(p.Queue)
+	if n < 2 {
+		return n
+	}
+	// Fisher-Yates shuffle
+	for i := n - 1; i > 0; i-- {
+		j := m.rng.Intn(i + 1)
+		p.Queue[i], p.Queue[j] = p.Queue[j], p.Queue[i]
+	}
+	return n
+}
+
+// Remove removes the track at the given 1-based position from the queue.
+// Returns the removed track and true if the position was valid.
+func (m *Manager) Remove(guildID string, pos int) (Track, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p := m.player(guildID)
+	if pos < 1 || pos > len(p.Queue) {
+		return Track{}, false
+	}
+	idx := pos - 1
+	t := p.Queue[idx]
+	p.Queue = append(p.Queue[:idx], p.Queue[idx+1:]...)
+	return t, true
+}
+
 func (m *Manager) Skip(guildID string) (*Track, bool) { return m.StartNext(guildID) }
 
 func (m *Manager) Stop(guildID string) int {
@@ -200,6 +331,7 @@ func (m *Manager) Stop(guildID string) int {
 	p.Queue = nil
 	p.NowPlaying = nil
 	p.Paused = false
+	p.LoopMode = LoopOff
 	return n
 }
 
