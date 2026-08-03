@@ -12,6 +12,7 @@ import (
 	"github.com/jettapindika/zoeyDCBot/internal/logging"
 	"github.com/jettapindika/zoeyDCBot/internal/music"
 	"github.com/jettapindika/zoeyDCBot/internal/player"
+	"github.com/jettapindika/zoeyDCBot/internal/recoverutil"
 )
 
 var musicLog = logging.Component("music")
@@ -185,7 +186,7 @@ func (b *Bot) cmdPlay(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 	// Start playback in goroutine — tryStartPlayback will use the pre-resolved
 	// StreamURL via PlayResolved, so there is no resolve gap.
-	go b.tryStartPlayback(i.GuildID, i.ChannelID, vc)
+	recoverutil.GuardGo("tryStartPlayback", func() { b.tryStartPlayback(i.GuildID, i.ChannelID, vc) })
 }
 
 // handlePlaylistPlay fetches all tracks from a playlist URL, adds them to the
@@ -253,7 +254,7 @@ func (b *Bot) handlePlaylistPlay(s *discordgo.Session, i *discordgo.InteractionC
 	// If nothing is playing, start playback with the first track.
 	if !b.music.IsPlaying(i.GuildID) && added > 0 {
 		b.followUpEmbed(s, i, embed)
-		go b.tryStartPlayback(i.GuildID, i.ChannelID, vc)
+		recoverutil.GuardGo("tryStartPlayback", func() { b.tryStartPlayback(i.GuildID, i.ChannelID, vc) })
 		return
 	}
 	b.followUpEmbed(s, i, embed)
@@ -372,7 +373,7 @@ func (b *Bot) advanceOrFinish(guildID, textChannelID string, vc *discordgo.Voice
 		currentVC := b.voice[guildID]
 		b.voiceMu.Unlock()
 		if currentVC != nil && currentVC.Ready {
-			go b.tryStartPlayback(guildID, textChannelID, currentVC)
+			recoverutil.GuardGo("tryStartPlayback", func() { b.tryStartPlayback(guildID, textChannelID, currentVC) })
 		} else {
 			log.Warn("voice connection gone, stopping auto-advance")
 			b.music.ClearNowPlaying(guildID)
@@ -599,7 +600,7 @@ func (b *Bot) cmdResume(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		desc = fmt.Sprintf("Resuming **%s**", now.Display())
 	}
 	b.respondEphemeralEmbed(s, i, successEmbed("▶️ Resumed", desc))
-	go b.replayCurrent(i.GuildID, i.ChannelID, vc)
+	recoverutil.GuardGo("replayCurrent", func() { b.replayCurrent(i.GuildID, i.ChannelID, vc) })
 }
 
 // replayCurrent replays the NowPlaying track from the beginning without

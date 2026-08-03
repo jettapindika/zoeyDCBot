@@ -25,6 +25,7 @@ import (
 	"github.com/jettapindika/zoeyDCBot/internal/memory"
 	"github.com/jettapindika/zoeyDCBot/internal/music"
 	"github.com/jettapindika/zoeyDCBot/internal/player"
+	"github.com/jettapindika/zoeyDCBot/internal/recoverutil"
 )
 
 // DefaultIntents mirrors Antares: guild messages + message content + DMs.
@@ -97,7 +98,7 @@ func (b *Bot) Run() error {
 
 	for i := 0; i < b.cfg.MaxWorkers; i++ {
 		b.wg.Add(1)
-		go b.worker()
+		recoverutil.GuardGo("worker", b.worker)
 	}
 
 	if err := b.sess.Open(); err != nil {
@@ -129,19 +130,25 @@ func (b *Bot) worker() {
 		case <-b.shutdown:
 			return
 		case j := <-b.queue:
-			b.handleJob(j)
+			// Guard each job so a panic in one job doesn't kill the
+			// worker permanently.
+			recoverutil.Guard("worker", func() {
+				b.handleJob(j)
+			})
 		}
 	}
 }
 
 // onReady logs gateway info once connected.
 func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
+	defer recoverutil.Recover("onReady")
 	logging.Component("gateway").Info("gateway ready", "user", r.User.Username, "guilds", len(r.Guilds))
 }
 
 // onMessageCreate is the fast path: filter, typing indicator, enqueue. All
 // heavy work happens in the worker pool.
 func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+	defer recoverutil.Recover("onMessageCreate")
 	if m.Author == nil || m.Author.Bot || m.Author.ID == s.State.User.ID {
 		return
 	}
@@ -321,7 +328,7 @@ func (b *Bot) runPrefixMusicAction(s *discordgo.Session, m *discordgo.MessageCre
 			desc = fmt.Sprintf("Resuming **%s**", now.Display())
 		}
 		_, _ = s.ChannelMessageSendEmbed(m.ChannelID, successEmbed("▶️ Resumed", desc))
-		go b.replayCurrent(m.GuildID, m.ChannelID, vc)
+		recoverutil.GuardGo("replayCurrent", func() { b.replayCurrent(m.GuildID, m.ChannelID, vc) })
 	case "queue":
 		q, now, paused := b.music.Queue(m.GuildID)
 		if now == nil && len(q) == 0 {
@@ -427,7 +434,7 @@ func (b *Bot) handlePrefixPlay(s *discordgo.Session, m *discordgo.MessageCreate,
 	musicLog.Info("added first track, starting playback", "pos", pos, "track", track.Title)
 
 	_, _ = s.ChannelMessageSendEmbed(m.ChannelID, queuedTrackEmbed(&track, pos, b.music.Remaining(m.GuildID)))
-	go b.tryStartPlayback(m.GuildID, m.ChannelID, vc)
+	recoverutil.GuardGo("tryStartPlayback", func() { b.tryStartPlayback(m.GuildID, m.ChannelID, vc) })
 }
 
 // handlePrefixPlaylistPlay handles x!play with a playlist URL.
@@ -489,7 +496,7 @@ func (b *Bot) handlePrefixPlaylistPlay(s *discordgo.Session, m *discordgo.Messag
 
 	if !b.music.IsPlaying(m.GuildID) && added > 0 {
 		_, _ = s.ChannelMessageSendEmbed(m.ChannelID, embed)
-		go b.tryStartPlayback(m.GuildID, m.ChannelID, vc)
+		recoverutil.GuardGo("tryStartPlayback", func() { b.tryStartPlayback(m.GuildID, m.ChannelID, vc) })
 		return
 	}
 	_, _ = s.ChannelMessageSendEmbed(m.ChannelID, embed)
@@ -669,6 +676,7 @@ func discordSafe(s string) string {
 
 // onInteractionCreate handles slash commands and button interactions.
 func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	defer recoverutil.Recover("onInteractionCreate")
 	if i.Type == discordgo.InteractionApplicationCommand {
 		switch i.ApplicationCommandData().Name {
 		case "ping":
