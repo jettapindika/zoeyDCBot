@@ -1,0 +1,30 @@
+# ZoeyDCBot — systemd service
+
+# Install:
+#   sudo cp deploy/zoeydcbot.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now zoeydcbot
+#
+# The service reads env vars from /etc/zoeydcbot.env — create it from
+# .env.example and fill in the real secrets. Never commit that file.
+
+[Unit]
+Description=ZoeyDCBot — AI Discord assistant
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/project/zoeyDCBot
+ExecStart=/home/ubuntu/project/zoeyDCBot/zoeydcbot
+EnvironmentFile=/etc/zoeydcbot.env
+Restart=on-failure
+RestartSec=3
+# Hardening (good defaults for a bot that only talks outbound)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
