@@ -82,6 +82,27 @@ Read `docs/feature-matrix.md` for the full feature inventory and status.
 
 ---
 
+## Cycle 5 — 2026-08-04
+
+**Researched:** Surveyed AutoMod features in Carl-bot, Dyno, and MEE6: spam detection (message rate limiting), link filtering (with domain/role allowlists), word filtering (banned words with whole-word matching), and exemption roles. Designed a per-guild rules engine configurable via env vars.
+
+**Implemented:** AutoMod — spam protection, link filter, word filter.
+- Created `internal/automod/` package with `Engine`, `Rules`, `Violation`, and `Action` types
+- **Spam detection**: rate-limits messages per user (configurable max messages in N seconds). Sliding window with mutex-protected tracking. Action: warn or mute (timeout).
+- **Link filter**: regex-based URL detection including bare domains (.com, .gg, .io, etc.). Domain allowlist and role exemptions. Action: warn or mute.
+- **Word filter**: case-insensitive whole-word matching (not substring). Banned words from env. Action: warn or mute.
+- **Role exemptions**: roles in `AUTOMOD_EXEMPT_ROLES` bypass all rules. Link filter has its own `AUTOMOD_LINK_ALLOW` domain allowlist.
+- Wired into `onMessageCreate` — checks before any other processing. Deletes offending message, sends warning embed, applies timeout if configured, logs to mod-log channel.
+- 9 unit tests covering spam detection, link filter (with allowlist/exempt roles), word filter (whole-word matching), exempt role bypass, empty content, and spam reset.
+- Config: `AUTOMOD_ENABLED`, `AUTOMOD_SPAM_MAX`, `AUTOMOD_SPAM_WINDOW`, `AUTOMOD_SPAM_ACTION`, `AUTOMOD_SPAM_MUTE_MIN`, `AUTOMOD_LINK_FILTER`, `AUTOMOD_LINK_ACTION`, `AUTOMOD_LINK_ALLOW`, `AUTOMOD_WORD_FILTER`, `AUTOMOD_WORD_ACTION`, `AUTOMOD_BANNED_WORDS`, `AUTOMOD_EXEMPT_ROLES`
+
+**Verification level:** Build + vet + test
+- `go build ./…` ✅
+- `go vet ./…` ✅
+- `go test ./…` ✅ (all packages, including 9 new automod tests)
+
+---
+
 ## Backlog (future cycles)
 
 - Cycle 5: AutoMod (spam protection, link filter, word filter)

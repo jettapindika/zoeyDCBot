@@ -50,7 +50,7 @@ Last updated: 2026-08-04 (Cycle 1)
 | `/mute` (role-based, not timeout) | ❌ | Not implemented |
 | `/unban` | ❌ | Not implemented |
 | `/nuke` (channel recreate) | ❌ | Not implemented |
-| Anti-spam / AutoMod | ❌ | discordgo fork lacks AutoMod types |
+| Anti-spam / AutoMod | ✅ | `internal/automod/` — spam, link filter, word filter, role exemptions |
 | Mod-log case numbering | ❌ | Not implemented |
 
 ## Music

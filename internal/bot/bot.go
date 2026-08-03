@@ -20,6 +20,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 
 	"github.com/jettapindika/zoeyDCBot/internal/ai"
+	"github.com/jettapindika/zoeyDCBot/internal/automod"
 	"github.com/jettapindika/zoeyDCBot/internal/config"
 	"github.com/jettapindika/zoeyDCBot/internal/logging"
 	"github.com/jettapindika/zoeyDCBot/internal/lyrics"
@@ -44,6 +45,7 @@ type Bot struct {
 	music   *music.Manager
 	player  *player.Player
 	lyrics  *lyrics.Client
+	automod *automod.Engine
 
 	queue    chan job
 	shutdown chan struct{}
@@ -79,6 +81,20 @@ func New(cfg *config.Config) (*Bot, error) {
 		music:    music.NewManager(cfg.MusicMaxQueue),
 		player:   player.New(cfg.YtdlpPath, cfg.FfmpegPath),
 		lyrics:   lyrics.New(),
+		automod: automod.New(automod.Rules{
+			SpamEnabled:       cfg.AutoModEnabled && cfg.AutoModSpamMax > 0,
+			SpamMaxMessages:   cfg.AutoModSpamMax,
+			SpamWindowSeconds: cfg.AutoModSpamWindow,
+			SpamAction:        parseAction(cfg.AutoModSpamAction, automod.ActionWarn),
+			SpamMuteMinutes:   cfg.AutoModSpamMuteMin,
+			LinkEnabled:       cfg.AutoModEnabled && cfg.AutoModLinkFilter,
+			LinkAllowedDomains: cfg.AutoModLinkAllow,
+			LinkAction:        parseAction(cfg.AutoModLinkAction, automod.ActionWarn),
+			WordFilterEnabled: cfg.AutoModEnabled && cfg.AutoModWordFilter,
+			BannedWords:       cfg.AutoModBannedWords,
+			WordAction:        parseAction(cfg.AutoModWordAction, automod.ActionWarn),
+			ExemptRoles:       cfg.AutoModExemptRoles,
+		}),
 		queue:    make(chan job, cfg.QueueSize),
 		shutdown: make(chan struct{}),
 		voice:    make(map[string]*discordgo.VoiceConnection),
@@ -156,6 +172,19 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 		return
 	}
 
+	// AutoMod: check message before any processing.
+	if b.automod != nil {
+		var roles []string
+		if m.Member != nil {
+			roles = make([]string, len(m.Member.Roles))
+			copy(roles, m.Member.Roles)
+		}
+		if v := b.automod.Check(m.Author.ID, m.Content, roles); v != nil {
+			b.handleAutoModViolation(s, m, v)
+			return
+		}
+	}
+
 	// x! prefix triggers text commands, NOT AI chat.
 	if strings.HasPrefix(m.Content, "x!") {
 		b.handlePrefixCommand(s, m)
@@ -183,6 +212,56 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 	default:
 		logging.Component("ai").Warn("queue full, dropping message", "channel", m.ChannelID, "queue_depth", len(b.queue))
 		_, _ = s.ChannelMessageSend(m.ChannelID, "⚠️ I'm busy right now; try again in a moment.")
+	}
+}
+
+// handleAutoModViolation deletes the offending message and takes the
+// configured action (warn or mute). Logs to the mod-log channel if set.
+func (b *Bot) handleAutoModViolation(s *discordgo.Session, m *discordgo.MessageCreate, v *automod.Violation) {
+	log := logging.Component("automod")
+
+	// Delete the offending message.
+	if err := s.ChannelMessageDelete(m.ChannelID, m.ID); err != nil {
+		log.Warn("failed to delete automod message", "err", err)
+	}
+
+	// Send a warning embed to the channel.
+	warnMsg := fmt.Sprintf("**AutoMod:** %s — %s\nUser: <@%s>", v.Rule, v.Detail, m.Author.ID)
+	_, _ = s.ChannelMessageSendEmbed(m.ChannelID, &discordgo.MessageEmbed{
+		Title:       "🛡️ AutoMod",
+		Description: warnMsg,
+		Color:       colorRed,
+	})
+
+	// Take action.
+	switch v.Action {
+	case automod.ActionMute:
+		if m.GuildID != "" && m.Member != nil {
+			dur := 5 * time.Minute
+			muteMin := int64(b.cfg.AutoModSpamMuteMin)
+			if v.Rule == "spam" && muteMin > 0 {
+				dur = time.Duration(muteMin) * time.Minute
+			}
+			until := time.Now().Add(dur)
+			if err := s.GuildMemberTimeout(m.GuildID, m.Author.ID, &until); err != nil {
+				log.Warn("failed to timeout user", "err", err, "user", m.Author.ID)
+			} else {
+				log.Info("automod muted user", "rule", v.Rule, "user", m.Author.ID, "duration", dur)
+			}
+		}
+	case automod.ActionWarn:
+		log.Info("automod warned user", "rule", v.Rule, "user", m.Author.ID)
+	}
+
+	// Log to mod-log channel if configured.
+	if b.cfg.ModLogChannel != "" {
+		embed := &discordgo.MessageEmbed{
+			Title:       "🛡️ AutoMod Action",
+			Description: fmt.Sprintf("**Rule:** %s\n**Action:** %s\n**Detail:** %s\n**User:** <@%s> (%s)\n**Channel:** <#%s>", v.Rule, v.Action, v.Detail, m.Author.ID, m.Author.Username, m.ChannelID),
+			Color:       colorRed,
+			Timestamp:   time.Now().Format(time.RFC3339),
+		}
+		_, _ = s.ChannelMessageSendEmbed(b.cfg.ModLogChannel, embed)
 	}
 }
 
@@ -754,5 +833,17 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		default:
 			b.respondEphemeralEmbed(s, i, warnEmbed("Unknown Action", "This button action is not recognised."))
 		}
+	}
+}
+
+// parseAction converts a string config value to an automod.Action.
+func parseAction(s string, def automod.Action) automod.Action {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "warn":
+		return automod.ActionWarn
+	case "mute", "timeout":
+		return automod.ActionMute
+	default:
+		return def
 	}
 }

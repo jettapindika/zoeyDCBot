@@ -38,6 +38,20 @@ type Config struct {
 	FfmpegPath    string // path to ffmpeg binary (default: ffmpeg)
 	MusicMaxQueue int    // maximum queued tracks per guild
 
+	// AutoMod
+	AutoModEnabled       bool
+	AutoModSpamMax       int    // max messages in window before action
+	AutoModSpamWindow    int    // seconds for spam window
+	AutoModSpamAction    string // warn or mute
+	AutoModSpamMuteMin   int    // mute duration in minutes
+	AutoModLinkFilter    bool
+	AutoModLinkAction    string
+	AutoModLinkAllow     []string // whitelisted domains
+	AutoModWordFilter    bool
+	AutoModWordAction    string
+	AutoModBannedWords   []string
+	AutoModExemptRoles   []string
+
 	LogLevel string // log level: debug, info, warn, error (default: info)
 }
 
@@ -80,6 +94,20 @@ func Load() (*Config, error) {
 		YtdlpPath:         strings.TrimSpace(os.Getenv("YTDLP_PATH")),
 		FfmpegPath:        strings.TrimSpace(os.Getenv("FFMPEG_PATH")),
 		MusicMaxQueue:     envInt("MUSIC_MAX_QUEUE", 50),
+
+		AutoModEnabled:     envBool("AUTOMOD_ENABLED", false),
+		AutoModSpamMax:     int(envInt("AUTOMOD_SPAM_MAX", 5)),
+		AutoModSpamWindow:  int(envInt("AUTOMOD_SPAM_WINDOW", 10)),
+		AutoModSpamAction:  strings.TrimSpace(os.Getenv("AUTOMOD_SPAM_ACTION")),
+		AutoModSpamMuteMin: int(envInt("AUTOMOD_SPAM_MUTE_MIN", 5)),
+		AutoModLinkFilter:  envBool("AUTOMOD_LINK_FILTER", false),
+		AutoModLinkAction:  strings.TrimSpace(os.Getenv("AUTOMOD_LINK_ACTION")),
+		AutoModLinkAllow:   splitCSV(os.Getenv("AUTOMOD_LINK_ALLOW")),
+		AutoModWordFilter:  envBool("AUTOMOD_WORD_FILTER", false),
+		AutoModWordAction:  strings.TrimSpace(os.Getenv("AUTOMOD_WORD_ACTION")),
+		AutoModBannedWords: splitCSV(os.Getenv("AUTOMOD_BANNED_WORDS")),
+		AutoModExemptRoles: splitCSV(os.Getenv("AUTOMOD_EXEMPT_ROLES")),
+
 		LogLevel:          strings.TrimSpace(os.Getenv("LOG_LEVEL")),
 	}
 
