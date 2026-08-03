@@ -46,6 +46,32 @@ Read `docs/feature-matrix.md` for the full feature inventory and status.
 
 **Researched:** Catalogued music bot features from Jockie, FredBoat, and Rythm — loop/repeat (track + queue), shuffle, remove-from-queue, move-in-queue, lyrics, DJ role, vote skip, seek, audio filters. Prioritized loop, shuffle, and remove as the highest-value, self-contained queue management features.
 
+**Implemented:** `/lyrics` command.
+- Created `internal/lyrics/` package with `Client.Search(ctx, track, artist)` querying lrclib.net
+- `/lyrics [query]` — if no query provided, uses the currently playing track's title + artist
+- Shows lyrics in a green embed with artist — track title, album in footer
+- Handles instrumental tracks (shows "🎼 This track is instrumental")
+- Truncates lyrics to 4000 chars (Discord embed limit is 4096) with ellipsis
+- Acknowledges interaction immediately, then follows up with results (avoids 3-second timeout)
+
+**Verification level:** Build + vet + test
+- `go build ./…` ✅
+- `go vet ./…` ✅
+- `go test ./…` ✅ (all packages)
+
+**Deferred / proposed:** (future cycles)
+- Cycle 4: Queue pagination, `/move <from> <to>`
+- Cycle 5: AutoMod (spam protection, link filter, word filter)
+- Cycle 6: Message logging (deleted/edited/purged)
+- Cycle 7: Reaction roles
+- Cycle 8: Welcome/goodbye messages
+- Cycle 9: Starboard
+- Cycle 10: SQLite persistence layer
+- Cycle 11: Live Rich Presence
+- Cycle 12: Voice channel rename
+
+**Researched:** Catalogued music bot features from Jockie, FredBoat, and Rythm — loop/repeat (track + queue), shuffle, remove-from-queue, move-in-queue, lyrics, DJ role, vote skip, seek, audio filters. Prioritized loop, shuffle, and remove as the highest-value, self-contained queue management features.
+
 **Implemented:** Three new music queue management commands.
 - `/loop <mode>` — cycles repeat mode: `off` (➡️), `track` (🔂), `queue` (🔁). Added `LoopMode` type and `LoopOff`/`LoopTrack`/`LoopQueue` constants to `music.Manager`. New `Advance()` method handles loop-aware track transitions: LoopTrack replays the current track, LoopQueue rotates the queue, LoopOff pops the next track. `Stop()` now resets loop mode.
 - `/shuffle` — Fisher-Yates shuffle of the queued tracks (not the currently playing one). Uses a per-Manager `rand.Rand` to avoid global lock contention. Returns count of shuffled tracks.
@@ -61,6 +87,36 @@ Read `docs/feature-matrix.md` for the full feature inventory and status.
 
 **Deferred / proposed:** (future cycles)
 - Cycle 3: `/lyrics`
+- Cycle 4: Queue pagination, `/move <from> <to>`
+- Cycle 5: AutoMod (spam protection, link filter, word filter)
+- Cycle 6: Message logging (deleted/edited/purged)
+- Cycle 7: Reaction roles
+- Cycle 8: Welcome/goodbye messages
+- Cycle 9: Starboard
+- Cycle 10: SQLite persistence layer
+- Cycle 11: Live Rich Presence
+- Cycle 12: Voice channel rename
+
+---
+
+## Cycle 3 — 2026-08-04
+
+**Researched:** Evaluated keyless lyrics APIs. lrclib.net provides a free, no-key REST API with both plain and synced (LRC) lyrics, CORS-enabled, rate-limited but generous. Tested with `GET /api/search?track_name=Bohemian+Rhapsody&artist_name=Queen` — returns JSON array with `plainLyrics`, `syncedLyrics`, `instrumental`, `albumName`, `duration`.
+
+**Implemented:** `/lyrics` command.
+- Created `internal/lyrics/` package with `Client.Search(ctx, track, artist)` querying lrclib.net
+- `/lyrics [query]` — if no query provided, uses the currently playing track's title + artist
+- Shows lyrics in a green embed with artist — track title, album in footer
+- Handles instrumental tracks (shows "🎼 This track is instrumental")
+- Truncates lyrics to 4000 chars (Discord embed limit is 4096) with ellipsis
+- Acknowledges interaction immediately, then follows up with results (avoids 3-second timeout)
+
+**Verification level:** Build + vet + test
+- `go build ./…` ✅
+- `go vet ./…` ✅
+- `go test ./…` ✅ (all packages)
+
+**Deferred / proposed:** (future cycles)
 - Cycle 4: Queue pagination, `/move <from> <to>`
 - Cycle 5: AutoMod (spam protection, link filter, word filter)
 - Cycle 6: Message logging (deleted/edited/purged)

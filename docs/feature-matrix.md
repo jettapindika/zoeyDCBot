@@ -73,7 +73,7 @@ Last updated: 2026-08-04 (Cycle 1)
 | `/move <from> <to>` | ❌ | Not implemented |
 | `/jump <position>` | ❌ | Not implemented |
 | `/forward` / `/rewind` | ❌ | Not implemented |
-| `/lyrics` | ❌ | Not implemented |
+| `/lyrics` | ✅ | lrclib.net API, auto-uses current track, instrumental detection |
 | `/history` (recently played) | ❌ | Not implemented |
 | YouTube source | ✅ | Via yt-dlp |
 | SoundCloud source | ✅ | Via yt-dlp (search priority: SC first) |

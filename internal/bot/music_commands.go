@@ -835,3 +835,84 @@ func (b *Bot) cmdRemove(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 	b.respondEphemeralEmbed(s, i, successEmbed("🗑️ Removed", fmt.Sprintf("Removed **%s** from position %d.", track.Display(), pos)))
 }
+
+func (b *Bot) cmdLyrics(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	if !b.cfg.MusicEnabled {
+		b.respondEphemeralEmbed(s, i, warnEmbed("Music Disabled", "Music commands are disabled."))
+		return
+	}
+
+	data := i.ApplicationCommandData()
+	query := admin.StringOption(data.Options, "query")
+
+	// If no query provided, use the currently playing track.
+	if query == "" {
+		_, now, _ := b.music.Queue(i.GuildID)
+		if now == nil {
+			b.respondEphemeralEmbed(s, i, warnEmbed("No Track", "Nothing is playing. Provide a search query with `/lyrics <song name>`."))
+			return
+		}
+		query = now.Title
+		if now.Artist != "" {
+			query = now.Artist + " " + now.Title
+		}
+	}
+
+	// Acknowledge immediately — the API call may take a second.
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Embeds: []*discordgo.MessageEmbed{
+				infoEmbed("🎵 Searching…", fmt.Sprintf("Looking up lyrics for **%s**", query)),
+			},
+			Flags: discordgo.MessageFlagsEphemeral,
+		},
+	}); err != nil {
+		musicLog.Warn("failed to acknowledge lyrics command", "err", err)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	result, err := b.lyrics.Search(ctx, query, "")
+	if err != nil {
+		b.followUpEmbed(s, i, warnEmbed("No Lyrics Found", fmt.Sprintf("Couldn't find lyrics for **%s**.\n\n`%v`", query, err)))
+		return
+	}
+
+	if result.Instrumental {
+		title := fmt.Sprintf("🎵 %s — %s", result.ArtistName, result.TrackName)
+		b.followUpEmbed(s, i, infoEmbed(title, "🎼 This track is **instrumental** — no lyrics."))
+		return
+	}
+
+	lyricsText := strings.TrimSpace(result.PlainLyrics)
+	if lyricsText == "" {
+		b.followUpEmbed(s, i, warnEmbed("No Lyrics Found", fmt.Sprintf("Found **%s — %s** but no plain lyrics are available.", result.ArtistName, result.TrackName)))
+		return
+	}
+
+	// Discord embed description limit is 4096 chars. Leave room for title and footer.
+	const maxLen = 4000
+	if len(lyricsText) > maxLen {
+		lyricsText = lyricsText[:maxLen-10] + "\n\n…"
+	}
+
+	title := fmt.Sprintf("🎵 %s — %s", result.ArtistName, result.TrackName)
+	footer := ""
+	if result.AlbumName != "" {
+		footer = "Album: " + result.AlbumName
+	}
+
+	embed := &discordgo.MessageEmbed{
+		Title:       title,
+		Description: lyricsText,
+		Color:       colorGreen,
+	}
+	if footer != "" {
+		embed.Footer = &discordgo.MessageEmbedFooter{Text: footer}
+	}
+
+	b.followUpEmbed(s, i, embed)
+}

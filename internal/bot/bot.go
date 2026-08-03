@@ -22,6 +22,7 @@ import (
 	"github.com/jettapindika/zoeyDCBot/internal/ai"
 	"github.com/jettapindika/zoeyDCBot/internal/config"
 	"github.com/jettapindika/zoeyDCBot/internal/logging"
+	"github.com/jettapindika/zoeyDCBot/internal/lyrics"
 	"github.com/jettapindika/zoeyDCBot/internal/memory"
 	"github.com/jettapindika/zoeyDCBot/internal/music"
 	"github.com/jettapindika/zoeyDCBot/internal/player"
@@ -42,6 +43,7 @@ type Bot struct {
 	history *memory.Store
 	music   *music.Manager
 	player  *player.Player
+	lyrics  *lyrics.Client
 
 	queue    chan job
 	shutdown chan struct{}
@@ -76,6 +78,7 @@ func New(cfg *config.Config) (*Bot, error) {
 		history:  memory.NewStore(cfg.ContextTurns, time.Duration(cfg.HistoryTTLMin)*time.Minute),
 		music:    music.NewManager(cfg.MusicMaxQueue),
 		player:   player.New(cfg.YtdlpPath, cfg.FfmpegPath),
+		lyrics:   lyrics.New(),
 		queue:    make(chan job, cfg.QueueSize),
 		shutdown: make(chan struct{}),
 		voice:    make(map[string]*discordgo.VoiceConnection),
@@ -731,6 +734,8 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			b.cmdShuffle(s, i)
 		case "remove":
 			b.cmdRemove(s, i)
+		case "lyrics":
+			b.cmdLyrics(s, i)
 		default:
 			b.respondEphemeralEmbed(s, i, warnEmbed("Unknown Command", "This command is not recognised."))
 		}

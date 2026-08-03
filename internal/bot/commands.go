@@ -85,6 +85,7 @@ func (b *Bot) commandDefinitions() []*discordgo.ApplicationCommand {
 			&discordgo.ApplicationCommand{Name: "loop", Description: "Set repeat mode (off, track, or queue)", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString, Name: "mode", Description: "Repeat mode: off, track, or queue", Required: true, Choices: []*discordgo.ApplicationCommandOptionChoice{{Name: "off", Value: "off"}, {Name: "track", Value: "track"}, {Name: "queue", Value: "queue"}}}}},
 			&discordgo.ApplicationCommand{Name: "shuffle", Description: "Shuffle the music queue"},
 			&discordgo.ApplicationCommand{Name: "remove", Description: "Remove a track from the queue by position", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionInteger, Name: "position", Description: "Position in queue (1-based, see /queue)", Required: true, MinValue: floatPtr(1)}}},
+			&discordgo.ApplicationCommand{Name: "lyrics", Description: "Show lyrics for the current track or a search query", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString, Name: "query", Description: "Song to search (defaults to current track)", Required: false}}},
 		)
 	}
 	return cmds
