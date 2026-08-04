@@ -148,9 +148,28 @@ Read `docs/feature-matrix.md` for the full feature inventory and status.
 
 ---
 
+## Cycle 8 — 2026-08-04
+
+**Researched:** Welcome/goodbye messages are standard in Dyno, Carl-bot, and MEE6. They fire on `GuildMemberAdd` and `GuildMemberRemove` gateway events, which require `IntentsGuildMembers` (a privileged intent). Features: custom message templates with placeholders ({user}, {mention}, {server}), avatar thumbnail, member count, configurable channel.
+
+**Implemented:** Welcome and goodbye messages.
+- Created `internal/bot/welcome.go` with `onGuildMemberAdd` and `onGuildMemberRemove` handlers
+- **Welcome**: sends an embed with the member's avatar, custom message, and member count footer. Uses `WELCOME_MESSAGE` env var with `{user}`, `{mention}`, `{server}` placeholders.
+- **Goodbye**: sends an embed with the leaving member's avatar and custom message. Uses `GOODBYE_MESSAGE` env var with same placeholders.
+- Both handlers wrapped with `recoverutil.Recover` for panic safety
+- Added `IntentsGuildMembers` to `DefaultIntents` (privileged intent — must be enabled in Discord Developer Portal)
+- Config: `WELCOME_ENABLED`, `WELCOME_CHANNEL_ID`, `WELCOME_MESSAGE`, `GOODBYE_ENABLED`, `GOODBYE_MESSAGE`
+- Updated `.env.example` with new env vars and placeholder documentation
+
+**Verification level:** Build + vet + test
+- `go build ./…` ✅
+- `go vet ./…` ✅
+- `go test -race ./…` ✅ (all packages)
+
+---
+
 ## Backlog (future cycles)
 
-- Cycle 8: Welcome/goodbye messages
 - Cycle 9: Starboard
 - Cycle 10: SQLite persistence layer
 - Cycle 11: Live Rich Presence

@@ -1,6 +1,6 @@
 # ZoeyDCBot — Feature Matrix
 
-Last updated: 2026-08-04 (Cycle 7)
+Last updated: 2026-08-04 (Cycle 8)
 
 ## Status legend
 - ✅ Implemented and tested
@@ -131,7 +131,7 @@ Last updated: 2026-08-04 (Cycle 7)
 | Select menu components | ⚠️ | Fork supports types; not used |
 | Pagination (queue, help) | ⚠️ | Queue pagination implemented (10/page); help not paginated |
 | Localization (multi-language) | ❌ | Not planned |
-| Welcome/goodbye messages | ❌ | Not implemented |
+| Welcome/goodbye messages | ✅ | `onGuildMemberAdd`/`onGuildMemberRemove` — custom templates with {user}/{mention}/{server} placeholders, avatar, member count |
 | Reaction roles | ✅ | `/reactionrole` creates emoji→role message; `/removerrole` removes it; `internal/roles/` Manager |
 | Custom status / activity | ❌ | Fork supports `UpdateCustomStatus`; not used |
 

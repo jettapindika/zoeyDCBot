@@ -36,7 +36,8 @@ const DefaultIntents = discordgo.IntentsGuildMessages |
 	discordgo.IntentsMessageContent |
 	discordgo.IntentsDirectMessages |
 	discordgo.IntentsGuildVoiceStates |
-	discordgo.IntentsGuildMessageReactions
+	discordgo.IntentsGuildMessageReactions |
+	discordgo.IntentsGuildMembers
 
 // Bot is the top-level Discord+AI application.
 type Bot struct {
@@ -112,6 +113,8 @@ func New(cfg *config.Config) (*Bot, error) {
 	sess.AddHandler(b.onMessageUpdate)
 	sess.AddHandler(b.onReactionAdd)
 	sess.AddHandler(b.onReactionRemove)
+	sess.AddHandler(b.onGuildMemberAdd)
+	sess.AddHandler(b.onGuildMemberRemove)
 
 	return b, nil
 }

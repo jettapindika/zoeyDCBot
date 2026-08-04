@@ -52,6 +52,13 @@ type Config struct {
 	AutoModBannedWords   []string
 	AutoModExemptRoles   []string
 
+	// Welcome / Goodbye
+	WelcomeEnabled    bool
+	WelcomeChannelID  string // channel for welcome messages
+	WelcomeMessage    string // custom welcome message template
+	GoodbyeEnabled    bool
+	GoodbyeMessage    string // custom goodbye message template
+
 	LogLevel string // log level: debug, info, warn, error (default: info)
 }
 
@@ -107,6 +114,12 @@ func Load() (*Config, error) {
 		AutoModWordAction:  strings.TrimSpace(os.Getenv("AUTOMOD_WORD_ACTION")),
 		AutoModBannedWords: splitCSV(os.Getenv("AUTOMOD_BANNED_WORDS")),
 		AutoModExemptRoles: splitCSV(os.Getenv("AUTOMOD_EXEMPT_ROLES")),
+
+		WelcomeEnabled:   envBool("WELCOME_ENABLED", false),
+		WelcomeChannelID: strings.TrimSpace(os.Getenv("WELCOME_CHANNEL_ID")),
+		WelcomeMessage:   os.Getenv("WELCOME_MESSAGE"),
+		GoodbyeEnabled:   envBool("GOODBYE_ENABLED", false),
+		GoodbyeMessage:   os.Getenv("GOODBYE_MESSAGE"),
 
 		LogLevel:          strings.TrimSpace(os.Getenv("LOG_LEVEL")),
 	}
