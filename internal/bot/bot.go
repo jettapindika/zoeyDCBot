@@ -104,6 +104,8 @@ func New(cfg *config.Config) (*Bot, error) {
 	sess.AddHandler(b.onReady)
 	sess.AddHandler(b.onMessageCreate)
 	sess.AddHandler(b.onInteractionCreate)
+	sess.AddHandler(b.onMessageDelete)
+	sess.AddHandler(b.onMessageUpdate)
 
 	return b, nil
 }

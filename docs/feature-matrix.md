@@ -1,6 +1,6 @@
 # ZoeyDCBot — Feature Matrix
 
-Last updated: 2026-08-04 (Cycle 1)
+Last updated: 2026-08-04 (Cycle 6)
 
 ## Status legend
 - ✅ Implemented and tested
@@ -52,13 +52,15 @@ Last updated: 2026-08-04 (Cycle 1)
 | `/nuke` (channel recreate) | ❌ | Not implemented |
 | Anti-spam / AutoMod | ✅ | `internal/automod/` — spam, link filter, word filter, role exemptions |
 | Mod-log case numbering | ❌ | Not implemented |
+| Message delete logging | ✅ | `onMessageDelete` — logs author, channel, content from State cache |
+| Message edit logging | ✅ | `onMessageUpdate` — logs before/after content, jump link |
 
 ## Music
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | `/play <query>` | ✅ | Resolves via yt-dlp, joins voice |
-| `/queue` | ✅ | Rich embed, per-track ETA, total runtime |
+| `/queue` | ✅ | Rich embed, per-track ETA, total runtime, paginated (10/page) |
 | `/nowplaying` | ✅ | Rich embed with thumbnail, progress bar |
 | `/skip` | ✅ | Skips current track |
 | `/stop` | ✅ | Stops + clears queue |
@@ -82,7 +84,7 @@ Last updated: 2026-08-04 (Cycle 1)
 | YouTube playlists | ✅ | Via `yt-dlp --flat-playlist` |
 | SoundCloud sets | ✅ | Via `yt-dlp --flat-playlist` |
 | Playlist expansion → individual queue entries | ✅ | `FetchPlaylist` → `AddMany` |
-| Gap-free playback (pre-resolve next track) | ✅ | `PlayResolved` |
+| Gap-less playback (pre-resolve next track) | ✅ | `PlayResolved` |
 | All-music-commands-use-embeds | ✅ | Zero plain-text responses |
 | Rich embeds (thumbnail, artist, duration, source icon) | ✅ | `embed.go` |
 | Queue duration / ETA | ✅ | `FormatQueue` |

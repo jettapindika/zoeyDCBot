@@ -103,10 +103,28 @@ Read `docs/feature-matrix.md` for the full feature inventory and status.
 
 ---
 
+## Cycle 6 — 2026-08-04
+
+**Researched:** Surveyed message logging features in Dyno, Carl-bot, and MEE6. Standard features: deleted message logging (with original content + author), edited message logging (before/after content), and bulk delete logging. Discord's gateway fires `MessageDelete` for individual and bulk deletes, and `MessageUpdate` for edits. `discordgo` State cache stores recent messages if `StateEnabled` (default true), enabling recovery of original content for deleted messages.
+
+**Implemented:** Message logging — deleted and edited messages logged to mod-log channel.
+- Created `internal/bot/message_log.go` with `onMessageDelete` and `onMessageUpdate` handlers
+- **Deleted messages**: logs author (from State cache if available), channel, message ID, and original content. Falls back to "(not cached)" when the message wasn't in State cache.
+- **Edited messages**: logs author, channel, jump link, and before/after content. Skips bot messages and edits where content didn't change (e.g. embed-only updates).
+- Both handlers wrapped with `recoverutil.Recover` for panic safety
+- Registered in `New()` alongside existing gateway handlers
+- No new config required — uses existing `MOD_LOG_CHANNEL_ID` (`b.cfg.ModLogChannel`)
+- `truncateText` helper clamps content to 1024 chars (Discord embed field limit) with ellipsis
+
+**Verification level:** Build + vet + test
+- `go build ./…` ✅
+- `go vet ./…` ✅
+- `go test ./…` ✅ (all packages)
+
+---
+
 ## Backlog (future cycles)
 
-- Cycle 5: AutoMod (spam protection, link filter, word filter)
-- Cycle 6: Message logging (deleted/edited/purged)
 - Cycle 7: Reaction roles
 - Cycle 8: Welcome/goodbye messages
 - Cycle 9: Starboard
