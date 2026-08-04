@@ -52,6 +52,10 @@ type Config struct {
 	AutoModBannedWords   []string
 	AutoModExemptRoles   []string
 
+	// Starboard
+	StarboardChannelID string
+	StarboardThreshold int
+
 	// Welcome / Goodbye
 	WelcomeEnabled    bool
 	WelcomeChannelID  string // channel for welcome messages
@@ -114,6 +118,9 @@ func Load() (*Config, error) {
 		AutoModWordAction:  strings.TrimSpace(os.Getenv("AUTOMOD_WORD_ACTION")),
 		AutoModBannedWords: splitCSV(os.Getenv("AUTOMOD_BANNED_WORDS")),
 		AutoModExemptRoles: splitCSV(os.Getenv("AUTOMOD_EXEMPT_ROLES")),
+
+		StarboardChannelID: strings.TrimSpace(os.Getenv("STARBOARD_CHANNEL_ID")),
+		StarboardThreshold: envInt("STARBOARD_THRESHOLD", 3),
 
 		WelcomeEnabled:   envBool("WELCOME_ENABLED", false),
 		WelcomeChannelID: strings.TrimSpace(os.Getenv("WELCOME_CHANNEL_ID")),

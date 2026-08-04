@@ -28,6 +28,7 @@ import (
 	"github.com/jettapindika/zoeyDCBot/internal/music"
 	"github.com/jettapindika/zoeyDCBot/internal/player"
 	"github.com/jettapindika/zoeyDCBot/internal/roles"
+	"github.com/jettapindika/zoeyDCBot/internal/starboard"
 	"github.com/jettapindika/zoeyDCBot/internal/recoverutil"
 )
 
@@ -49,7 +50,8 @@ type Bot struct {
 	player  *player.Player
 	lyrics  *lyrics.Client
 	automod *automod.Engine
-	roles   *roles.Manager
+	roles     *roles.Manager
+	starboard *starboard.Engine
 
 	queue    chan job
 	shutdown chan struct{}
@@ -85,7 +87,8 @@ func New(cfg *config.Config) (*Bot, error) {
 		music:    music.NewManager(cfg.MusicMaxQueue),
 		player:   player.New(cfg.YtdlpPath, cfg.FfmpegPath),
 		lyrics:   lyrics.New(),
-		roles:   roles.New(),
+		roles:     roles.New(),
+		starboard: starboard.New(cfg.StarboardThreshold, "⭐"),
 		automod: automod.New(automod.Rules{
 			SpamEnabled:       cfg.AutoModEnabled && cfg.AutoModSpamMax > 0,
 			SpamMaxMessages:   cfg.AutoModSpamMax,
@@ -832,6 +835,8 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			b.cmdReactionRole(s, i)
 		case "removerrole":
 			b.cmdRemoveReactionRole(s, i)
+		case "starboard":
+			b.cmdStarboard(s, i)
 		default:
 			b.respondEphemeralEmbed(s, i, warnEmbed("Unknown Command", "This command is not recognised."))
 		}

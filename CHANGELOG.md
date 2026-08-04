@@ -168,9 +168,31 @@ Read `docs/feature-matrix.md` for the full feature inventory and status.
 
 ---
 
+## Cycle 9 — 2026-08-04
+
+**Researched:** Starboard is a feature in Carl-bot and MEE6 where messages that receive enough ⭐ reactions are reposted to a dedicated channel. Requires `MessageReactionAdd`/`Remove` events (already registered). Key design: track starred messages in-memory, post an embed when threshold is met, update the embed when star count changes, delete the starboard message when count drops below threshold.
+
+**Implemented:** Starboard — ⭐ reactions repost messages to a dedicated channel.
+- Created `internal/starboard/` package with `Engine`, `Entry` types
+- `Engine` tracks starred messages in-memory (concurrency-safe with `sync.RWMutex`)
+- `onStarboardReactionAdd`: counts ⭐ reactions, creates/updates entry, posts embed when threshold met, edits embed when count changes
+- `onStarboardReactionRemove`: updates count, deletes starboard message when below threshold
+- `cmdStarboard`: `/starboard [channel] [threshold]` — configures channel and threshold at runtime
+- Starboard handlers called via `defer` from the main reaction handlers, wrapped with `recoverutil.Recover`
+- Config: `STARBOARD_CHANNEL_ID`, `STARBOARD_THRESHOLD` (default 3)
+- Skips bot messages (no starring bot messages)
+- 5 unit tests including 50-pass concurrent access test
+
+**Verification level:** 50-pass race detector
+- `go build ./…` ✅
+- `go vet ./…` ✅
+- `go test -race ./…` ✅ (all packages)
+- `go test -race -count=50 ./internal/starboard/` ✅ (0 failures)
+
+---
+
 ## Backlog (future cycles)
 
-- Cycle 9: Starboard
 - Cycle 10: SQLite persistence layer
 - Cycle 11: Live Rich Presence
 - Cycle 12: Voice channel rename
