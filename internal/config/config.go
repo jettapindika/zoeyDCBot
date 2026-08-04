@@ -38,6 +38,13 @@ type Config struct {
 	FfmpegPath    string // path to ffmpeg binary (default: ffmpeg)
 	MusicMaxQueue int    // maximum queued tracks per guild
 
+	// Spotify (optional). When both are set, the bot uses the Client Credentials
+	// flow for reliable, higher-limit Spotify Web API calls instead of scraping
+	// anonymous tokens from embed pages. If empty, the bot falls back to the
+	// legacy embed-page scraping path.
+	SpotifyClientID     string
+	SpotifyClientSecret string
+
 	// AutoMod
 	AutoModEnabled       bool
 	AutoModSpamMax       int    // max messages in window before action
@@ -108,6 +115,8 @@ func Load() (*Config, error) {
 		YtdlpPath:         strings.TrimSpace(os.Getenv("YTDLP_PATH")),
 		FfmpegPath:        strings.TrimSpace(os.Getenv("FFMPEG_PATH")),
 		MusicMaxQueue:     envInt("MUSIC_MAX_QUEUE", 50),
+		SpotifyClientID:     strings.TrimSpace(os.Getenv("SPOTIFY_CLIENT_ID")),
+		SpotifyClientSecret: strings.TrimSpace(os.Getenv("SPOTIFY_CLIENT_SECRET")),
 
 		AutoModEnabled:     envBool("AUTOMOD_ENABLED", false),
 		AutoModSpamMax:     int(envInt("AUTOMOD_SPAM_MAX", 5)),
@@ -183,6 +192,10 @@ func Load() (*Config, error) {
 		}
 		if c.FfmpegPath == "" {
 			c.FfmpegPath = "ffmpeg"
+		}
+		// Spotify credentials are optional, but if one is set both must be.
+		if (c.SpotifyClientID == "") != (c.SpotifyClientSecret == "") {
+			errs = append(errs, "SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET must both be set or both empty")
 		}
 	}
 

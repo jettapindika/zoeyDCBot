@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os/exec"
 	"regexp"
@@ -35,28 +36,49 @@ func IsPlaylist(query string) bool {
 }
 
 // FetchPlaylist expands a playlist URL into individual tracks.
-// For Spotify it scrapes the embed page (no auth needed).
-// For YouTube/SoundCloud it uses yt-dlp --flat-playlist.
+// For Spotify it uses the Client Credentials token (when configured) or falls
+// back to embed-page scraping. For YouTube/SoundCloud it uses yt-dlp
+// --flat-playlist.
 // Returns at most maxTracks entries (0 = no limit).
 func (p *Player) FetchPlaylist(ctx context.Context, query string, maxTracks int) ([]PlaylistTrack, string, error) {
 	if spotifyPlaylistRegexp.MatchString(query) {
-		return fetchSpotifyPlaylist(ctx, query, maxTracks)
+		return p.fetchSpotifyPlaylist(ctx, query, maxTracks)
 	}
 	return p.fetchYtdlpPlaylist(ctx, query, maxTracks)
 }
 
-// fetchSpotifyPlaylist scrapes the Spotify embed page for track metadata.
-// Spotify's embed page works for tracks but returns 404 for albums/playlists.
-// For albums/playlists, we get an anonymous access token from any track embed
-// page, then use the Spotify Web API to fetch the track listing.
-func fetchSpotifyPlaylist(ctx context.Context, spotifyURL string, maxTracks int) ([]PlaylistTrack, string, error) {
+// fetchSpotifyPlaylist resolves a Spotify album or playlist into tracks.
+//
+// When Client Credentials are configured (p.spotifyAuth != nil), it uses a
+// proper cached access token against the Spotify Web API — reliable and
+// higher-limit than the anonymous token.
+//
+// Otherwise it falls back to the legacy path: try the embed page first (works
+// for some cases), then scrape an anonymous token from a track embed page and
+// call the Web API with that.
+func (p *Player) fetchSpotifyPlaylist(ctx context.Context, spotifyURL string, maxTracks int) ([]PlaylistTrack, string, error) {
 	m := spotifyPlaylistRegexp.FindStringSubmatch(spotifyURL)
 	if len(m) < 3 {
 		return nil, "", fmt.Errorf("unrecognised Spotify URL")
 	}
 	kind, id := m[1], m[2]
 
-	// Try the embed page first (works for some cases).
+	// Preferred path: Client Credentials token.
+	if p.spotifyAuth != nil && p.spotifyAuth.Enabled() {
+		token, err := p.spotifyAuth.Token(ctx)
+		if err == nil {
+			tracks, name, apiErr := fetchSpotifyPlaylistViaAPI(ctx, kind, id, token, maxTracks)
+			if apiErr == nil {
+				return tracks, name, nil
+			}
+			// Fall through to legacy path on API error.
+			slog.Warn("spotify web api failed with client-credentials token, falling back to embed scraping", "err", apiErr)
+		} else {
+			slog.Warn("failed to obtain spotify client-credentials token, falling back to embed scraping", "err", err)
+		}
+	}
+
+	// Legacy path: try the embed page first (works for some cases).
 	embedURL := fmt.Sprintf("https://open.spotify.com/embed/%s/%s", kind, id)
 	tracks, name, err := fetchSpotifyEmbedPlaylist(ctx, embedURL, maxTracks)
 	if err == nil && len(tracks) > 0 {

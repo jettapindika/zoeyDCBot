@@ -7,22 +7,42 @@ import (
 )
 
 func TestNewDefaultsPaths(t *testing.T) {
-	p := New("", "")
+	p := New("", "", "", "")
 	if p.YtdlpPath() != "yt-dlp" {
 		t.Errorf("expected default ytdlp path 'yt-dlp', got %q", p.YtdlpPath())
 	}
 	if p.FfmpegPath() != "ffmpeg" {
 		t.Errorf("expected default ffmpeg path 'ffmpeg', got %q", p.FfmpegPath())
 	}
+	if p.spotifyAuth != nil {
+		t.Errorf("expected nil spotify auth when no creds, got non-nil")
+	}
 }
 
 func TestNewCustomPaths(t *testing.T) {
-	p := New("/usr/local/bin/yt-dlp", "/usr/bin/ffmpeg")
+	p := New("/usr/local/bin/yt-dlp", "/usr/bin/ffmpeg", "", "")
 	if p.YtdlpPath() != "/usr/local/bin/yt-dlp" {
 		t.Errorf("expected custom ytdlp path, got %q", p.YtdlpPath())
 	}
 	if p.FfmpegPath() != "/usr/bin/ffmpeg" {
 		t.Errorf("expected custom ffmpeg path, got %q", p.FfmpegPath())
+	}
+}
+
+func TestNewWithSpotifyCreds(t *testing.T) {
+	p := New("", "", "test-client-id", "test-client-secret")
+	if p.spotifyAuth == nil {
+		t.Fatal("expected non-nil spotify auth when creds provided")
+	}
+	if !p.spotifyAuth.Enabled() {
+		t.Error("expected spotify auth to be enabled when creds provided")
+	}
+}
+
+func TestNewWithoutSpotifyCreds(t *testing.T) {
+	p := New("", "", "", "")
+	if p.spotifyAuth != nil {
+		t.Error("expected nil spotify auth when no creds provided")
 	}
 }
 
@@ -72,7 +92,7 @@ func TestIsDirectURL(t *testing.T) {
 }
 
 func TestIsPlaying(t *testing.T) {
-	p := New("yt-dlp", "ffmpeg")
+	p := New("yt-dlp", "ffmpeg", "", "")
 	if p.IsPlaying("g1") {
 		t.Error("expected not playing initially")
 	}
@@ -80,13 +100,13 @@ func TestIsPlaying(t *testing.T) {
 
 func TestStopWhenNotPlaying(t *testing.T) {
 	// Stop should be safe to call even when nothing is playing
-	p := New("yt-dlp", "ffmpeg")
+	p := New("yt-dlp", "ffmpeg", "", "")
 	p.Stop("g1") // should not panic
 	p.Stop("")   // should not panic
 }
 
 func TestStopIdempotent(t *testing.T) {
-	p := New("yt-dlp", "ffmpeg")
+	p := New("yt-dlp", "ffmpeg", "", "")
 	p.Stop("g1")
 	p.Stop("g1") // should not panic or block
 }

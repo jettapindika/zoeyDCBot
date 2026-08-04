@@ -37,6 +37,21 @@ deploy/               systemd unit
    - Invite it to your server with `applications.commands` and `bot` scopes.
 2. `cp .env.example .env` and fill in `DISCORD_BOT_TOKEN`, `LLM_BASE_URL`,
    `LLM_API_KEY`, `LLM_MODEL`.
+### Spotify (optional but recommended)
+
+To enable Spotify as the #1 music search priority:
+
+1. Create a free app at <https://developer.spotify.com/dashboard>.
+2. Add any Redirect URI (e.g. `https://example.org/callback`) and select **Web API**.
+3. Copy the **Client ID** and **Client Secret** from the app's Settings page.
+4. Add them to `.env`:
+   ```
+   SPOTIFY_CLIENT_ID=your_client_id
+   SPOTIFY_CLIENT_SECRET=your_client_secret
+   ```
+
+When configured, music search priority is: **Spotify** (metadata) → **SoundCloud** (audio) → **YouTube** (audio). Spotify albums and playlists are fully expanded via the Web API.
+
 3. Build & run:
 
 ```sh
@@ -73,6 +88,22 @@ Just **mention** the bot or **DM** it to chat. Replies stream in — first token
 | `/unlock` | Unlock channel for @everyone |
 
 Admin commands require the corresponding Discord permission (e.g. Manage Messages for `/purge`) **or** a role listed in `ADMIN_ROLE_IDS`. All actions are logged to `MOD_LOG_CHANNEL_ID` if set.
+
+### Server Management
+| Command | Description |
+|---------|-------------|
+| `/createchannel <name> [type] [category] [nsfw]` | Create a text or voice channel |
+| `/deletechannel <channel>` | Delete a channel |
+| `/editchannel <channel> [name] [topic] [slowmode] [nsfw]` | Edit channel properties |
+| `/createrole <name> [color] [hoist] [mentionable] [permissions]` | Create a role |
+| `/deleterole <role>` | Delete a role |
+| `/editrole <role> [name] [color] [hoist] [mentionable]` | Edit role properties |
+| `/giverole <user> <role>` | Give a role to a member |
+| `/removerole <user> <role>` | Remove a role from a member |
+| `/channelinfo [channel]` | Show channel information |
+| `/roleinfo <role>` | Show role information with permissions |
+
+Server management commands require Manage Channels or Manage Roles permission (or Administrator). All also work with `x!` prefix (e.g. `x!createchannel music-room voice`).
 
 ### Music
 | Command | Description |

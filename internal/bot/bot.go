@@ -101,7 +101,7 @@ func New(cfg *config.Config) (*Bot, error) {
 		ai:       ai.New(ai.Config{BaseURL: cfg.LLMBaseURL, APIKey: cfg.LLMAPIKey, Model: cfg.LLMModel, MaxRetries: cfg.LLMMaxRetries, Timeout: time.Duration(cfg.LLMTimeoutSeconds) * time.Second}),
 		history:  memory.NewStore(cfg.ContextTurns, time.Duration(cfg.HistoryTTLMin)*time.Minute),
 		music:    music.NewManager(cfg.MusicMaxQueue),
-		player:   player.New(cfg.YtdlpPath, cfg.FfmpegPath),
+		player:   player.New(cfg.YtdlpPath, cfg.FfmpegPath, cfg.SpotifyClientID, cfg.SpotifyClientSecret),
 		lyrics:   lyrics.New(),
 		roles:     roles.New(),
 		starboard: starboard.New(cfg.StarboardThreshold, "⭐"),
@@ -405,6 +405,8 @@ func (b *Bot) handlePrefixCommand(s *discordgo.Session, m *discordgo.MessageCrea
 		b.handlePrefixRemoveRole(s, m, args)
 	case "starboard":
 		b.handlePrefixStarboard(s, m, args)
+	case "createchannel", "deletechannel", "editchannel", "createrole", "deleterole", "editrole", "giverole", "removerole", "channelinfo", "roleinfo":
+		b.handlePrefixServerCmd(s, m, cmd, args)
 	default:
 		_, _ = s.ChannelMessageSendEmbed(m.ChannelID, warnEmbed("Unknown Command",
 			fmt.Sprintf("`x!%s` is not a recognised command. Try `x!help`.", cmd)))
@@ -977,6 +979,26 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			b.cmdLock(s, i)
 		case "unlock":
 			b.cmdUnlock(s, i)
+		case "createchannel":
+			b.cmdCreateChannel(s, i)
+		case "deletechannel":
+			b.cmdDeleteChannel(s, i)
+		case "editchannel":
+			b.cmdEditChannel(s, i)
+		case "createrole":
+			b.cmdCreateRole(s, i)
+		case "deleterole":
+			b.cmdDeleteRole(s, i)
+		case "editrole":
+			b.cmdEditRole(s, i)
+		case "giverole":
+			b.cmdGiveRole(s, i)
+		case "removerole":
+			b.cmdRemoveRole(s, i)
+		case "channelinfo":
+			b.cmdChannelInfo(s, i)
+		case "roleinfo":
+			b.cmdRoleInfo(s, i)
 		case "userinfo":
 			b.cmdUserInfo(s, i)
 		case "serverinfo":

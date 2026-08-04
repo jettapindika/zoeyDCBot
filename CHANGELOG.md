@@ -231,3 +231,48 @@ Read `docs/feature-matrix.md` for the full feature inventory and status.
 - `go build ./…` ✅
 - `go vet ./…` ✅
 - `go test -race ./…` ✅ (all packages pass)
+
+## Cycle 5 — 2026-08-04
+
+**Implemented:** Server management commands + Spotify #1 search priority + YouTube reliability fix.
+
+**Server Management (10 new commands):**
+- `/createchannel` — create text or voice channels with optional category parent and NSFW flag
+- `/deletechannel` — delete any channel
+- `/editchannel` — edit channel name, topic, slowmode, NSFW flag
+- `/createrole` — create roles with color, hoist, mentionable, permissions
+- `/deleterole` — delete roles
+- `/editrole` — edit role name, color, hoist, mentionable, permissions
+- `/giverole` — assign roles to members
+- `/removerole` — remove roles from members
+- `/channelinfo` — detailed channel information
+- `/roleinfo` — detailed role information with permission breakdown and member count
+- All commands available via both `/` slash and `x!` prefix
+- All require Manage Channels or Manage Roles permission (or Administrator bypass)
+- All actions logged to MOD_LOG_CHANNEL_ID
+
+**Spotify #1 Search Priority:**
+- When `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` are configured, text searches go to Spotify first
+- Spotify provides accurate metadata (title, artist, thumbnail, duration, ISRC)
+- The Spotify track name is then used to search SoundCloud → YouTube for the audio stream
+- Search priority: Spotify (metadata) → SoundCloud (audio) → YouTube (audio)
+- Spotify album/playlist links expanded via Web API (replaces broken embed scraping)
+- New config: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` in `.env.example`
+
+**YouTube Resolution Reliability:**
+- Added retry with `--format best` fallback when `bestaudio/best` fails
+- Catches cases where bestaudio format is unavailable but a lower-quality stream works
+
+**Files changed:**
+- `internal/bot/server_commands.go` — 10 slash command handlers (new)
+- `internal/bot/prefix_server.go` — 10 prefix command handlers (new)
+- `internal/bot/commands.go` — command definitions + help text updates
+- `internal/bot/bot.go` — interaction router + prefix router wiring
+- `internal/player/player.go` — Spotify search method, search priority, YouTube retry
+- `internal/config/config.go` — Spotify config fields
+- `.env.example` — Spotify config documentation
+
+**Verification:**
+- `go build ./...` ✅
+- `go vet ./...` ✅
+- `go test -race -count=1 ./...` ✅ (all packages pass)

@@ -28,7 +28,8 @@ func TestIsPlaylist(t *testing.T) {
 }
 
 func TestFetchSpotifyPlaylistRejectsBadURL(t *testing.T) {
-	if _, _, err := fetchSpotifyPlaylist(nil, "https://example.com/nope", 0); err == nil {
+	p := New("", "", "", "")
+	if _, _, err := p.fetchSpotifyPlaylist(nil, "https://example.com/nope", 0); err == nil {
 		t.Error("expected error for non-Spotify URL")
 	}
 }

@@ -70,6 +70,55 @@ func (b *Bot) commandDefinitions() []*discordgo.ApplicationCommand {
 		{Name: "slowmode", Description: "Set channel slowmode", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionInteger, Name: "seconds", Description: "Slowmode in seconds (0-21600)", Required: true, MinValue: floatPtr(0), MaxValue: 21600}}},
 		{Name: "lock", Description: "Lock this channel for @everyone"},
 		{Name: "unlock", Description: "Unlock this channel for @everyone"},
+		// --- Server Management ---
+		{Name: "createchannel", Description: "Create a new channel", Options: []*discordgo.ApplicationCommandOption{
+			{Type: discordgo.ApplicationCommandOptionString, Name: "name", Description: "Channel name", Required: true},
+			{Type: discordgo.ApplicationCommandOptionString, Name: "type", Description: "Channel type: text or voice (default: text)", Required: false},
+			{Type: discordgo.ApplicationCommandOptionChannel, Name: "category", Description: "Parent category", Required: false},
+			{Type: discordgo.ApplicationCommandOptionBoolean, Name: "nsfw", Description: "Mark as NSFW (text only)", Required: false},
+		}},
+		{Name: "deletechannel", Description: "Delete a channel", Options: []*discordgo.ApplicationCommandOption{
+			{Type: discordgo.ApplicationCommandOptionChannel, Name: "channel", Description: "Channel to delete", Required: true},
+		}},
+		{Name: "editchannel", Description: "Edit channel properties", Options: []*discordgo.ApplicationCommandOption{
+			{Type: discordgo.ApplicationCommandOptionChannel, Name: "channel", Description: "Channel to edit", Required: true},
+			{Type: discordgo.ApplicationCommandOptionString, Name: "name", Description: "New channel name", Required: false},
+			{Type: discordgo.ApplicationCommandOptionString, Name: "topic", Description: "New topic (text only)", Required: false},
+			{Type: discordgo.ApplicationCommandOptionInteger, Name: "slowmode", Description: "Slowmode seconds (0-21600)", Required: false, MinValue: floatPtr(0), MaxValue: 21600},
+			{Type: discordgo.ApplicationCommandOptionBoolean, Name: "nsfw", Description: "Set NSFW flag", Required: false},
+		}},
+		{Name: "createrole", Description: "Create a new role", Options: []*discordgo.ApplicationCommandOption{
+			{Type: discordgo.ApplicationCommandOptionString, Name: "name", Description: "Role name", Required: true},
+			{Type: discordgo.ApplicationCommandOptionString, Name: "color", Description: "Hex color (e.g. #FF0000)", Required: false},
+			{Type: discordgo.ApplicationCommandOptionBoolean, Name: "hoist", Description: "Display separately (default: false)", Required: false},
+			{Type: discordgo.ApplicationCommandOptionBoolean, Name: "mentionable", Description: "Can be @mentioned (default: false)", Required: false},
+			{Type: discordgo.ApplicationCommandOptionString, Name: "permissions", Description: "Comma-separated perms (e.g. send_messages,kick)", Required: false},
+		}},
+		{Name: "deleterole", Description: "Delete a role", Options: []*discordgo.ApplicationCommandOption{
+			{Type: discordgo.ApplicationCommandOptionRole, Name: "role", Description: "Role to delete", Required: true},
+		}},
+		{Name: "editrole", Description: "Edit role properties", Options: []*discordgo.ApplicationCommandOption{
+			{Type: discordgo.ApplicationCommandOptionRole, Name: "role", Description: "Role to edit", Required: true},
+			{Type: discordgo.ApplicationCommandOptionString, Name: "name", Description: "New name", Required: false},
+			{Type: discordgo.ApplicationCommandOptionString, Name: "color", Description: "Hex color (e.g. #FF0000)", Required: false},
+			{Type: discordgo.ApplicationCommandOptionBoolean, Name: "hoist", Description: "Display separately", Required: false},
+			{Type: discordgo.ApplicationCommandOptionBoolean, Name: "mentionable", Description: "Can be @mentioned", Required: false},
+			{Type: discordgo.ApplicationCommandOptionString, Name: "permissions", Description: "Comma-separated perms", Required: false},
+		}},
+		{Name: "giverole", Description: "Give a role to a member", Options: []*discordgo.ApplicationCommandOption{
+			{Type: discordgo.ApplicationCommandOptionUser, Name: "user", Description: "Member to give role to", Required: true},
+			{Type: discordgo.ApplicationCommandOptionRole, Name: "role", Description: "Role to give", Required: true},
+		}},
+		{Name: "removerole", Description: "Remove a role from a member", Options: []*discordgo.ApplicationCommandOption{
+			{Type: discordgo.ApplicationCommandOptionUser, Name: "user", Description: "Member to remove role from", Required: true},
+			{Type: discordgo.ApplicationCommandOptionRole, Name: "role", Description: "Role to remove", Required: true},
+		}},
+		{Name: "channelinfo", Description: "Show channel information", Options: []*discordgo.ApplicationCommandOption{
+			{Type: discordgo.ApplicationCommandOptionChannel, Name: "channel", Description: "Channel to inspect (default: current)", Required: false},
+		}},
+		{Name: "roleinfo", Description: "Show role information", Options: []*discordgo.ApplicationCommandOption{
+			{Type: discordgo.ApplicationCommandOptionRole, Name: "role", Description: "Role to inspect", Required: true},
+		}},
 	}
 
 	if b.cfg.MusicEnabled {
@@ -168,7 +217,17 @@ func helpText(musicEnabled bool) string {
 	b.WriteString("• `/purge` `<amount>` — delete messages  •  `/slowmode` `<seconds>` — set slowmode\n")
 	b.WriteString("• `/kick` `<user>` `[reason]`  •  `/ban` `<user>` `[reason]` `[delete_days]`\n")
 	b.WriteString("• `/timeout` `<user>` `<minutes>` `[reason]`  •  `/untimeout` `<user>`\n")
-	b.WriteString("• `/lock` / `/unlock` — lock/unlock channel for @everyone\n\n")
+	b.WriteString("• `/lock` / `/unlock` — lock/unlock channel for @everyone\n")
+	b.WriteString("**🔧 Server Management** *(requires Manage Channels/Roles or admin)*\n")
+	b.WriteString("• `/createchannel` `<name>` `[type]` `[category]` `[nsfw]` — create a channel\n")
+	b.WriteString("• `/deletechannel` `<channel>` — delete a channel\n")
+	b.WriteString("• `/editchannel` `<channel>` `[name]` `[topic]` `[slowmode]` `[nsfw]` — edit channel\n")
+	b.WriteString("• `/createrole` `<name>` `[color]` `[hoist]` `[mentionable]` `[permissions]` — create a role\n")
+	b.WriteString("• `/deleterole` `<role>` — delete a role\n")
+	b.WriteString("• `/editrole` `<role>` `[name]` `[color]` `[hoist]` `[mentionable]` — edit role\n")
+	b.WriteString("• `/giverole` `<user>` `<role>` — give a role to a member\n")
+	b.WriteString("• `/removerole` `<user>` `<role>` — remove a role from a member\n")
+	b.WriteString("• `/channelinfo` `[channel]` — channel info  •  `/roleinfo` `<role>` — role info\n\n")
 
 	if musicEnabled {
 		b.WriteString("**🎵 Music**\n")
@@ -197,6 +256,7 @@ func helpText(musicEnabled bool) string {
 	} else {
 		b.WriteString("• **Music:** disabled (`MUSIC_ENABLED=false`)\n")
 	}
+	b.WriteString("• **Server:** `x!createchannel` `x!deletechannel` `x!editchannel` `x!createrole` `x!deleterole` `x!editrole` `x!giverole` `x!removerole` `x!channelinfo` `x!roleinfo`\n")
 	b.WriteString("• **Engagement:** `x!reactionrole` (alias `x!rr`) `x!removerrole` `x!starboard`\n\n")
 
 	return b.String()

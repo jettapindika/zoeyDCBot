@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -47,6 +48,8 @@ type Player struct {
 	ytdlpPath  string
 	ffmpegPath string
 
+	spotifyAuth *SpotifyAuth // nil when credentials are not configured
+
 	mu        sync.Mutex
 	stopChans map[string]chan struct{}
 	playing   map[string]bool
@@ -54,20 +57,27 @@ type Player struct {
 }
 
 // New creates a Player, auto-detecting yt-dlp and ffmpeg from PATH.
-func New(ytdlpPath, ffmpegPath string) *Player {
+// If spotifyClientID and spotifyClientSecret are both non-empty, the player
+// uses the Spotify Client Credentials flow for Web API access; otherwise it
+// falls back to the legacy embed-page scraping path.
+func New(ytdlpPath, ffmpegPath, spotifyClientID, spotifyClientSecret string) *Player {
 	if ytdlpPath == "" {
 		ytdlpPath = "yt-dlp"
 	}
 	if ffmpegPath == "" {
 		ffmpegPath = "ffmpeg"
 	}
-	return &Player{
+	p := &Player{
 		ytdlpPath:  ytdlpPath,
 		ffmpegPath: ffmpegPath,
 		stopChans:  make(map[string]chan struct{}),
 		playing:    make(map[string]bool),
 		volume:     make(map[string]float64),
 	}
+	if spotifyClientID != "" && spotifyClientSecret != "" {
+		p.spotifyAuth = NewSpotifyAuth(spotifyClientID, spotifyClientSecret)
+	}
+	return p
 }
 
 // YtdlpPath returns the configured yt-dlp path (for testing).
@@ -163,39 +173,71 @@ func (p *Player) Resolve(ctx context.Context, query string) (*ResolvedTrack, err
 	var spotifyMeta *spotifyEmbedData
 	if isSpotifyLink(query) {
 		log.Info("resolving spotify link", "query", query)
-		// Primary: scrape the Spotify embed page for title + artist + thumbnail + duration.
-		if data, err := spotifyEmbedTrack(ctx, query); err == nil && data.Title != "" {
-			log.Info("found spotify track via embed page", "title", data.Title, "artist", data.Artist)
-			resolvedQuery = data.Title
-			if data.Artist != "" {
-				resolvedQuery = data.Artist + " - " + data.Title
+		// Primary: use the Spotify Web API with a Client Credentials token
+		// (when configured) for title + artist + thumbnail + duration.
+		if p.spotifyAuth != nil && p.spotifyAuth.Enabled() {
+			if data, err := p.spotifyTrackViaAPI(ctx, query); err == nil && data.Title != "" {
+				log.Info("found spotify track via web api", "title", data.Title, "artist", data.Artist)
+				resolvedQuery = data.Title
+				if data.Artist != "" {
+					resolvedQuery = data.Artist + " - " + data.Title
+				}
+				spotifyMeta = data
+			} else if err != nil {
+				log.Warn("spotify web api failed, falling back to embed page", "err", err)
 			}
-			spotifyMeta = data
-		} else {
-			log.Warn("spotify embed page failed, falling back to yt-dlp", "err", err)
-			// Fallback: try yt-dlp metadata extraction (will likely fail with DRM, but try)
-			metaArgs := []string{
-				"--dump-json",
-				"--no-warnings",
-				"--skip-download",
-			}
-			metaArgs = append(metaArgs, query)
-			metaCmd := exec.CommandContext(ctx, p.ytdlpPath, metaArgs...)
-			metaOut, metaErr := metaCmd.CombinedOutput()
-			if metaErr == nil {
-				var meta ytDlpJSON
-				if json.Unmarshal(metaOut, &meta) == nil && meta.Title != "" {
-					log.Info("found spotify track title via yt-dlp", "title", meta.Title)
-					resolvedQuery = meta.Title
+		}
+		// Fallback: scrape the Spotify embed page for title + artist + thumbnail + duration.
+		if spotifyMeta == nil {
+			if data, err := spotifyEmbedTrack(ctx, query); err == nil && data.Title != "" {
+				log.Info("found spotify track via embed page", "title", data.Title, "artist", data.Artist)
+				resolvedQuery = data.Title
+				if data.Artist != "" {
+					resolvedQuery = data.Artist + " - " + data.Title
+				}
+				spotifyMeta = data
+			} else {
+				log.Warn("spotify embed page failed, falling back to yt-dlp", "err", err)
+				// Fallback: try yt-dlp metadata extraction (will likely fail with DRM, but try)
+				metaArgs := []string{
+					"--dump-json",
+					"--no-warnings",
+					"--skip-download",
+				}
+				metaArgs = append(metaArgs, query)
+				metaCmd := exec.CommandContext(ctx, p.ytdlpPath, metaArgs...)
+				metaOut, metaErr := metaCmd.CombinedOutput()
+				if metaErr == nil {
+					var meta ytDlpJSON
+					if json.Unmarshal(metaOut, &meta) == nil && meta.Title != "" {
+						log.Info("found spotify track title via yt-dlp", "title", meta.Title)
+						resolvedQuery = meta.Title
+					}
 				}
 			}
 		}
-		// If both fail, resolvedQuery stays as the original Spotify URL (will be treated as direct URL)
+		// If all fail, resolvedQuery stays as the original Spotify URL (will be treated as direct URL)
 	}
 
-	// For plain text queries (not direct URLs), search via SoundCloud first,
-	// then fall back to YouTube search if SoundCloud fails.
+	// For plain text queries (not direct URLs), search Spotify first (if
+	// configured) to get accurate metadata, then use the Spotify track name to
+	// search SoundCloud → YouTube for the actual audio stream.
+	// Priority: Spotify (metadata) → SoundCloud (audio) → YouTube (audio).
 	if !isDirectURL(resolvedQuery) {
+		// #1: Search Spotify for track metadata (title, artist, thumbnail, duration).
+		if p.spotifyAuth != nil && p.spotifyAuth.Enabled() && spotifyMeta == nil {
+			if data, err := p.spotifySearchTrack(ctx, resolvedQuery); err == nil && data.Title != "" {
+				log.Info("found track via spotify search", "title", data.Title, "artist", data.Artist)
+				spotifyMeta = data
+				// Use the Spotify track name + artist for a better SoundCloud/YouTube search.
+				resolvedQuery = data.Title
+				if data.Artist != "" {
+					resolvedQuery = data.Artist + " - " + data.Title
+				}
+			} else if err != nil {
+				log.Debug("spotify search failed or no results, continuing with original query", "err", err)
+			}
+		}
 		// Try SoundCloud search first
 		scQuery := "scsearch1:" + resolvedQuery
 		log.Info("resolving search query via SoundCloud", "query", resolvedQuery)
@@ -301,8 +343,23 @@ func (p *Player) Resolve(ctx context.Context, query string) (*ResolvedTrack, err
 				log.Warn("could not get youtube title via oEmbed, cannot fall back", "query", resolvedQuery)
 			}
 		}
-		log.Error("yt-dlp failed", "query", resolvedQuery, "err", err, "output", string(output))
-		return nil, fmt.Errorf("yt-dlp resolve failed: %w: %s", err, strings.TrimSpace(string(output)))
+		// Retry with a less restrictive format if the first attempt failed.
+		log.Warn("yt-dlp failed with bestaudio, retrying with best format", "query", resolvedQuery, "err", err)
+		retryArgs := []string{
+			"--dump-json",
+			"--no-playlist",
+			"--no-warnings",
+			"--format", "best",
+			"--no-check-certificate",
+		}
+		retryArgs = append(retryArgs, resolvedQuery)
+		retryCmd := exec.CommandContext(ctx, p.ytdlpPath, retryArgs...)
+		retryOutput, retryErr := retryCmd.CombinedOutput()
+		if retryErr != nil {
+			log.Error("yt-dlp failed (both bestaudio and best formats)", "query", resolvedQuery, "err", retryErr, "output", string(retryOutput))
+			return nil, fmt.Errorf("yt-dlp resolve failed: %w: %s", err, strings.TrimSpace(string(output)))
+		}
+		output = retryOutput
 	}
 	result, parseErr := parseYtDlpJSON(output)
 	if parseErr != nil {
@@ -334,8 +391,11 @@ func enrichWithSpotify(rt *ResolvedTrack, meta *spotifyEmbedData, originalQuery 
 		rt.Duration = meta.Duration
 	}
 	rt.Source = "Spotify"
-	// Keep the original Spotify URL as the webpage link so embeds link to Spotify.
-	if isSpotifyLink(originalQuery) {
+	// Use the Spotify search result URL or the original Spotify link as webpage.
+	if meta.URL != "" {
+		rt.WebpageURL = meta.URL
+		rt.Source = "Spotify"
+	} else if isSpotifyLink(originalQuery) {
 		rt.WebpageURL = originalQuery
 	}
 }
@@ -372,6 +432,7 @@ type spotifyEmbedData struct {
 	Artist    string
 	Thumbnail string
 	Duration  float64 // seconds
+	URL       string // Spotify track URL (for embed link)
 }
 
 // spotifyTrackIDRegexp extracts the track ID from a Spotify track URL.
@@ -476,6 +537,77 @@ func spotifyEmbedTrack(ctx context.Context, spotifyURL string) (*spotifyEmbedDat
 		Artist:    artist,
 		Thumbnail: thumbnail,
 		Duration:  float64(entity.Duration) / 1000.0,
+	}, nil
+}
+
+// spotifyTrackViaAPI fetches a single track's metadata via the Spotify Web API
+// using a Client Credentials token. This is the preferred resolution path when
+// credentials are configured — more reliable than scraping the embed page.
+func (p *Player) spotifyTrackViaAPI(ctx context.Context, spotifyURL string) (*spotifyEmbedData, error) {
+	if p.spotifyAuth == nil || !p.spotifyAuth.Enabled() {
+		return nil, fmt.Errorf("spotify credentials not configured")
+	}
+	m := spotifyTrackIDRegexp.FindStringSubmatch(spotifyURL)
+	if len(m) < 2 {
+		return nil, fmt.Errorf("unrecognised Spotify track URL")
+	}
+	trackID := m[1]
+
+	token, err := p.spotifyAuth.Token(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get spotify token: %w", err)
+	}
+
+	apiURL := fmt.Sprintf("https://api.spotify.com/v1/tracks/%s?market=US", trackID)
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("spotify track API returned HTTP %d", resp.StatusCode)
+	}
+
+	var track struct {
+		Name       string `json:"name"`
+		DurationMs int    `json:"duration_ms"`
+		Artists    []struct {
+			Name string `json:"name"`
+		} `json:"artists"`
+		Album struct {
+			Images []struct {
+				URL string `json:"url"`
+			} `json:"images"`
+		} `json:"album"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&track); err != nil {
+		return nil, fmt.Errorf("parse spotify track API response: %w", err)
+	}
+	if track.Name == "" {
+		return nil, fmt.Errorf("spotify track API returned no name")
+	}
+
+	var artist string
+	if len(track.Artists) > 0 {
+		artist = track.Artists[0].Name
+	}
+	var thumbnail string
+	if len(track.Album.Images) > 0 {
+		thumbnail = track.Album.Images[0].URL
+	}
+
+	return &spotifyEmbedData{
+		Title:     track.Name,
+		Artist:    artist,
+		Thumbnail: thumbnail,
+		Duration:  float64(track.DurationMs) / 1000.0,
 	}, nil
 }
 
@@ -796,4 +928,85 @@ func (p *Player) GetVolume(guildID string) float64 {
 		return 1.0
 	}
 	return vol
+}
+
+// spotifySearchTrack searches Spotify for a text query and returns the best
+// match's metadata. This is used as the #1 search priority: when a user types
+// a song name, we search Spotify first to get accurate title/artist/duration/
+// thumbnail, then search SoundCloud/YouTube for the actual audio stream.
+func (p *Player) spotifySearchTrack(ctx context.Context, query string) (*spotifyEmbedData, error) {
+	if p.spotifyAuth == nil || !p.spotifyAuth.Enabled() {
+		return nil, fmt.Errorf("spotify credentials not configured")
+	}
+	token, err := p.spotifyAuth.Token(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get spotify token: %w", err)
+	}
+
+	searchURL := "https://api.spotify.com/v1/search?q=" + url.QueryEscape(query) + "&type=track&limit=1&market=US"
+	req, err := http.NewRequestWithContext(ctx, "GET", searchURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == 429 {
+		return nil, fmt.Errorf("spotify search rate-limited")
+	}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("spotify search returned HTTP %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Tracks struct {
+			Items []struct {
+				Name       string `json:"name"`
+				DurationMs int    `json:"duration_ms"`
+				Artists   []struct {
+					Name string `json:"name"`
+				} `json:"artists"`
+				Album struct {
+					Images []struct {
+						URL string `json:"url"`
+					} `json:"images"`
+				} `json:"album"`
+				ExternalURLs struct {
+					Spotify string `json:"spotify"`
+				} `json:"external_urls"`
+			} `json:"items"`
+		} `json:"tracks"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("parse spotify search response: %w", err)
+	}
+	if len(result.Tracks.Items) == 0 {
+		return nil, fmt.Errorf("no spotify results for %q", query)
+	}
+	t := result.Tracks.Items[0]
+	if t.Name == "" {
+		return nil, fmt.Errorf("spotify search returned empty track name")
+	}
+
+	var artist string
+	if len(t.Artists) > 0 {
+		artist = t.Artists[0].Name
+	}
+	var thumbnail string
+	if len(t.Album.Images) > 0 {
+		thumbnail = t.Album.Images[0].URL
+	}
+
+	return &spotifyEmbedData{
+		Title:     t.Name,
+		Artist:    artist,
+		Thumbnail: thumbnail,
+		Duration:  float64(t.DurationMs) / 1000.0,
+		URL:       t.ExternalURLs.Spotify,
+	}, nil
 }
