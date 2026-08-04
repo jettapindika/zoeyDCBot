@@ -27,6 +27,7 @@ import (
 	"github.com/jettapindika/zoeyDCBot/internal/memory"
 	"github.com/jettapindika/zoeyDCBot/internal/music"
 	"github.com/jettapindika/zoeyDCBot/internal/player"
+	"github.com/jettapindika/zoeyDCBot/internal/presence"
 	"github.com/jettapindika/zoeyDCBot/internal/roles"
 	"github.com/jettapindika/zoeyDCBot/internal/starboard"
 	"github.com/jettapindika/zoeyDCBot/internal/store"
@@ -54,6 +55,7 @@ type Bot struct {
 	roles     *roles.Manager
 	starboard *starboard.Engine
 	store    *store.Store
+	presence *presence.Manager
 
 	queue    chan job
 	shutdown chan struct{}
@@ -101,6 +103,7 @@ func New(cfg *config.Config) (*Bot, error) {
 		lyrics:   lyrics.New(),
 		roles:     roles.New(),
 		starboard: starboard.New(cfg.StarboardThreshold, "⭐"),
+		presence: presence.New(sess, "/help for commands"),
 		store:    db,
 		automod: automod.New(automod.Rules{
 			SpamEnabled:       cfg.AutoModEnabled && cfg.AutoModSpamMax > 0,
@@ -192,6 +195,9 @@ func (b *Bot) worker() {
 func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 	defer recoverutil.Recover("onReady")
 	logging.Component("gateway").Info("gateway ready", "user", r.User.Username, "guilds", len(r.Guilds))
+	if b.presence != nil {
+		b.presence.SetIdle()
+	}
 }
 
 // onMessageCreate is the fast path: filter, typing indicator, enqueue. All

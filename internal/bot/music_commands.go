@@ -337,6 +337,11 @@ func (b *Bot) tryStartPlayback(guildID, textChannelID string, vc *discordgo.Voic
 		Components: components,
 	})
 
+	// Update bot presence to show current track.
+	if b.presence != nil {
+		b.presence.SetNowPlaying(track.Title, pre.Artist)
+	}
+
 	// Play the track (blocks until done).  Pre-resolved → no resolve gap.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
@@ -377,6 +382,9 @@ func (b *Bot) advanceOrFinish(guildID, textChannelID string, vc *discordgo.Voice
 	if !hasNext && loopMode == music.LoopOff {
 		log.Info("queue empty after track finished")
 		b.music.ClearNowPlaying(guildID)
+		if b.presence != nil {
+			b.presence.SetIdle()
+		}
 		return
 	}
 
@@ -558,6 +566,9 @@ func (b *Bot) cmdStop(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	musicLog.Info("stop command", "guild", i.GuildID, "user", i.Member.User.ID)
 	b.player.Stop(i.GuildID)
 	b.music.Stop(i.GuildID)
+	if b.presence != nil {
+		b.presence.SetIdle()
+	}
 	b.respondEphemeralEmbed(s, i, successEmbed("⏹️ Stopped", "Stopped playback and cleared the queue."))
 }
 
@@ -676,6 +687,11 @@ func (b *Bot) replayCurrent(guildID, textChannelID string, vc *discordgo.VoiceCo
 		Embeds:     []*discordgo.MessageEmbed{embed},
 		Components: components,
 	})
+
+	// Update bot presence to show current track.
+	if b.presence != nil {
+		b.presence.SetNowPlaying(track.Title, pre.Artist)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()

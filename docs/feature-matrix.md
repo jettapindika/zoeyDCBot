@@ -1,6 +1,6 @@
 # ZoeyDCBot — Feature Matrix
 
-Last updated: 2026-08-04 (Cycle 10)
+Last updated: 2026-08-04 (Cycle 11)
 
 ## Status legend
 - ✅ Implemented and tested
@@ -89,7 +89,7 @@ Last updated: 2026-08-04 (Cycle 10)
 | Rich embeds (thumbnail, artist, duration, source icon) | ✅ | `embed.go` |
 | Queue duration / ETA | ✅ | `FormatQueue` |
 | Progress bar on Now Playing | ✅ | `embed.go` |
-| Live Rich Presence (bot status = current track) | ❌ | `internal/presence/` not created |
+| Live Rich Presence (bot status = current track) | ✅ | `internal/presence/` Manager — "Listening to" activity with track title/artist; idle on stop/leave |
 | Voice channel auto-rename to track name | ❌ | `internal/channelrename/` not created |
 | Now Playing selection UI (ambiguous matches) | ❌ | Not implemented |
 | Lyrics sync | ❌ | Not planned |
@@ -133,7 +133,7 @@ Last updated: 2026-08-04 (Cycle 10)
 | Localization (multi-language) | ❌ | Not planned |
 | Welcome/goodbye messages | ✅ | `onGuildMemberAdd`/`onGuildMemberRemove` — custom templates with {user}/{mention}/{server} placeholders, avatar, member count |
 | Reaction roles | ✅ | `/reactionrole` creates emoji→role message; `/removerrole` removes it; `internal/roles/` Manager |
-| Custom status / activity | ❌ | Fork supports `UpdateCustomStatus`; not used |
+| Custom status / activity | ✅ | `internal/presence/` — idle status on startup, now-playing status during music |
 | Starboard | ✅ | `/starboard` configures channel+threshold; ⭐ reactions repost messages; `internal/starboard/` Engine |
 
 ## Open Items from Prior Work (Backlog)
