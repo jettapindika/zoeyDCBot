@@ -5,6 +5,18 @@ Read `docs/feature-matrix.md` for the full feature inventory and status.
 
 ---
 
+## v0.1.3 — 2026-08-04
+
+**Bug fixes:**
+
+- **Voice audio silence / corruption** — Fixed ChaCha20-Poly1305 nonce endianness in the local discordgo fork. Discord expects NetworkEndian (BigEndian) for `*_rtpsize` AEAD modes; the upstream fork used LittleEndian, producing undecryptable audio frames (silence). Sender nonce at `voice.go:894` and receiver nonce at `voice.go:1032` now use `binary.BigEndian.PutUint32`. Confirmed against the songbird (Rust) reference implementation.
+- **DAVE protocol disabled** — The fork's MLS/DAVE (end-to-end encryption) implementation is incomplete and corrupts audio frames. Set `max_dave_protocol_version: 0` in the voice handshake (`voice.go:344`) and gated off DAVE session creation (`voice.go:538`). Voice now uses the standard encrypted transport only.
+- **go.mod replace directive** — Module now replaces `github.com/bwmarrin/discordgo` with the local `./discordgo-fork` directory containing these fixes, instead of the upstream `yeongaori` fork.
+
+**Verification:** `go build` ✅ · `go vet` ✅ · bot online (gateway ready, 1 guild)
+
+---
+
 ## v0.1.2 — 2026-08-04
 
 **Bug fixes:**

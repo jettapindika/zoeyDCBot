@@ -8,7 +8,7 @@ require (
 	layeh.com/gopus v0.0.0-20210501142526-1ee02d434e32
 )
 
-replace github.com/bwmarrin/discordgo => github.com/yeongaori/discordgo v0.0.0-20260307092356-fd09989565b3
+replace github.com/bwmarrin/discordgo => ./discordgo-fork
 
 require (
 	github.com/cloudflare/circl v1.6.3 // indirect
