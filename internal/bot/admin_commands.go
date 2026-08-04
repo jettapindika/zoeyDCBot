@@ -18,6 +18,12 @@ func (b *Bot) resolveMember(guildID, userID string) (*discordgo.Member, error) {
 }
 
 // checkAdmin checks invoker permission and bot permission for an admin command.
+//
+// The interaction payload already includes the invoking member's roles and
+// computed Permissions directly from Discord — this is always fresher than
+// re-resolving from the local state cache (which may not reflect a role
+// granted after the bot's last full sync). We only fall back to resolveMember
+// when the payload's member is missing or lacks permissions.
 func (b *Bot) checkAdmin(i *discordgo.InteractionCreate, perm int64) (*discordgo.Member, error) {
 	guildID := i.GuildID
 	if guildID == "" {
@@ -26,9 +32,24 @@ func (b *Bot) checkAdmin(i *discordgo.InteractionCreate, perm int64) (*discordgo
 	if i.Member == nil || i.Member.User == nil {
 		return nil, fmt.Errorf("could not resolve your Discord member")
 	}
-	member, err := b.resolveMember(guildID, i.Member.User.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve your member: %w", err)
+
+	// Use the interaction payload's member directly — it has fresh roles and
+	// Permissions from Discord. Only fall back to cache/REST if the payload
+	// member is incomplete (e.g. missing Permissions field for an old gateway
+	// event).
+	member := i.Member
+	if member.Permissions == 0 {
+		// Try to get a member with permissions resolved.
+		if resolved, err := b.resolveMember(guildID, member.User.ID); err == nil && resolved != nil {
+			if resolved.Permissions != 0 {
+				member = resolved
+			}
+		}
+	}
+
+	// Bot owners bypass all permission checks.
+	if admin.IsBotOwner(member.User.ID, b.cfg.AdminUserIDs) {
+		return member, nil
 	}
 	// Administrators or admin-role members bypass specific permission checks.
 	if admin.IsAdministrator(b.sess, guildID, i.ChannelID, member, b.cfg.AdminRoleIDs) {

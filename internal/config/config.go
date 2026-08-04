@@ -31,6 +31,7 @@ type Config struct {
 	EditInterval   int      // ms between streaming message edits
 
 	AdminRoleIDs  []string // optional roles allowed to use admin commands
+	AdminUserIDs  []string // optional users (bot owners) who bypass all permission checks
 	ModLogChannel string   // optional channel for moderation audit messages
 
 	MusicEnabled  bool   // enables music slash commands
@@ -110,6 +111,7 @@ func Load() (*Config, error) {
 		QueueSize:         envInt("QUEUE_SIZE", 128),
 		EditInterval:      envInt("EDIT_INTERVAL_MS", 1000),
 		AdminRoleIDs:      splitCSV(os.Getenv("ADMIN_ROLE_IDS")),
+		AdminUserIDs:      splitCSV(os.Getenv("ADMIN_USER_IDS")),
 		ModLogChannel:     strings.TrimSpace(os.Getenv("MOD_LOG_CHANNEL_ID")),
 		MusicEnabled:      envBool("MUSIC_ENABLED", false),
 		YtdlpPath:         strings.TrimSpace(os.Getenv("YTDLP_PATH")),

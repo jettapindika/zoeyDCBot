@@ -90,7 +90,7 @@ Last updated: 2026-08-04 (Cycle 12)
 | Queue duration / ETA | ✅ | `FormatQueue` |
 | Progress bar on Now Playing | ✅ | `embed.go` |
 | Live Rich Presence (bot status = current track) | ✅ | `internal/presence/` Manager — "Listening to" activity with track title/artist; idle on stop/leave |
-| Voice channel auto-rename to track name | ✅ | `internal/channelrename/` Manager — debounced rename, restores original on stop/leave |
+| Voice channel status (track name) | ✅ | `internal/voicestatus/` Manager — sets voice channel status via PUT /channels/{id}/voice-status; cleared on stop/leave |
 | Now Playing selection UI (ambiguous matches) | ❌ | Not implemented |
 | Lyrics sync | ❌ | Not planned |
 | DJ role / music permission | ❌ | Not implemented |
@@ -141,7 +141,7 @@ Last updated: 2026-08-04 (Cycle 12)
 These are known gaps from the prior build cycles that have NOT been completed:
 
 1. **Live Rich Presence** — bot status shows current track; multi-guild rotation; debounce; idle cycling; custom status. `internal/presence/` package never created.
-2. **Voice Channel Rename** — opt-in per-guild; debounce; rate-limit queue; crash-safe restore. `internal/channelrename/` package never created.
+2. **Voice Channel Status** — replaced channel rename with voice-status endpoint (`internal/voicestatus/`). Sets status on track start, clears on stop/leave.
 3. **SQLite persistence** — decided but not implemented. Would persist: queue, conversation context, mod-log, settings.
 4. **Bot package tests** — `internal/bot/` has zero test files. Needs unit tests for interaction routing, prefix commands, embed helpers.
 5. **Spotify album/playlist expansion** — code has fallback but doesn't work reliably (429 rate limits from Web API).

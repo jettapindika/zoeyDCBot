@@ -9,6 +9,20 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+// IsBotOwner reports whether the given user ID is in the configured bot-owner
+// list. Bot owners bypass all permission checks.
+func IsBotOwner(userID string, adminUserIDs []string) bool {
+	if userID == "" || len(adminUserIDs) == 0 {
+		return false
+	}
+	for _, id := range adminUserIDs {
+		if id == userID {
+			return true
+		}
+	}
+	return false
+}
+
 // HasAnyRole reports whether a member has at least one configured admin role.
 func HasAnyRole(member *discordgo.Member, roleIDs []string) bool {
 	if member == nil || len(roleIDs) == 0 {
@@ -26,9 +40,34 @@ func HasAnyRole(member *discordgo.Member, roleIDs []string) bool {
 	return false
 }
 
+// IsGuildOwner reports whether the given user ID is the owner of the guild.
+// Guild owners implicitly have all permissions. The guild is resolved from
+// state cache first (owner ID never changes), then REST as fallback.
+func IsGuildOwner(s *discordgo.Session, guildID, userID string) bool {
+	if guildID == "" || userID == "" || s == nil {
+		return false
+	}
+	var ownerID string
+	if s.State != nil {
+		if g, err := s.State.Guild(guildID); err == nil && g != nil {
+			ownerID = g.OwnerID
+		}
+	}
+	if ownerID == "" {
+		if g, err := s.Guild(guildID); err == nil && g != nil {
+			ownerID = g.OwnerID
+		}
+	}
+	return ownerID == userID
+}
+
 // IsAdministrator reports whether the member has the Discord Administrator
 // permission or is in the configured admin-roles list. This is a fast check
 // for gating high-risk commands without needing a specific permission bit.
+//
+// The member's own Permissions field (populated by Discord in interaction
+// payloads) is checked first — this is always fresher than a cache lookup.
+// Only when that field is empty do we fall back to s.UserChannelPermissions.
 func IsAdministrator(s *discordgo.Session, guildID, channelID string, member *discordgo.Member, adminRoleIDs []string) bool {
 	if HasAnyRole(member, adminRoleIDs) {
 		return true
@@ -36,11 +75,21 @@ func IsAdministrator(s *discordgo.Session, guildID, channelID string, member *di
 	if member == nil || member.User == nil {
 		return false
 	}
-	// Administrators always have all permissions.
-	if member.Permissions&discordgo.PermissionAdministrator != 0 {
+	// Guild owners implicitly have all permissions.
+	if IsGuildOwner(s, guildID, member.User.ID) {
 		return true
 	}
-	// Fall back to resolved permissions if member.Permissions is empty.
+	// member.Permissions is populated by Discord in interaction payloads —
+	// always prefer it over a cache lookup that may be stale.
+	if member.Permissions != 0 {
+		return member.Permissions&discordgo.PermissionAdministrator != 0
+	}
+	// Fall back to resolved permissions only when member.Permissions is empty
+	// (e.g. prefix commands resolved from gateway state). If we have no
+	// session, we can't resolve permissions.
+	if s == nil {
+		return false
+	}
 	perms, err := s.UserChannelPermissions(member.User.ID, channelID)
 	if err != nil && s.State != nil {
 		perms, err = s.State.UserChannelPermissions(member.User.ID, channelID)
@@ -52,13 +101,35 @@ func IsAdministrator(s *discordgo.Session, guildID, channelID string, member *di
 }
 
 // HasPermission checks the member's guild/channel permissions, falling back to
-// configured admin roles. Administrators always pass Discord permission checks.
+// configured admin roles. Administrators and guild owners always pass Discord
+// permission checks.
+//
+// The member's own Permissions field (populated by Discord in interaction
+// payloads) is checked first — this is always fresher than a cache lookup.
+// Only when that field is empty do we fall back to s.UserChannelPermissions.
 func HasPermission(s *discordgo.Session, guildID, channelID string, member *discordgo.Member, adminRoleIDs []string, perm int64) (bool, error) {
 	if HasAnyRole(member, adminRoleIDs) {
 		return true, nil
 	}
 	if member == nil || member.User == nil {
 		return false, nil
+	}
+	// Guild owners implicitly have all permissions.
+	if IsGuildOwner(s, guildID, member.User.ID) {
+		return true, nil
+	}
+	// member.Permissions is populated by Discord in interaction payloads.
+	// Prefer it over a potentially stale cache lookup.
+	if member.Permissions != 0 {
+		if member.Permissions&discordgo.PermissionAdministrator != 0 {
+			return true, nil
+		}
+		return member.Permissions&perm != 0, nil
+	}
+	// No member.Permissions — fall back to cache/REST. If we have no session,
+	// we can't resolve permissions.
+	if s == nil {
+		return false, fmt.Errorf("no session available to resolve permissions")
 	}
 	perms, err := s.UserChannelPermissions(member.User.ID, channelID)
 	if err != nil {
@@ -75,7 +146,7 @@ func HasPermission(s *discordgo.Session, guildID, channelID string, member *disc
 	if perms&discordgo.PermissionAdministrator != 0 {
 		return true, nil
 	}
-	return perms&perm == perm, nil
+	return perms&perm != 0, nil
 }
 
 // BotHasPermission checks bot permissions in a channel.

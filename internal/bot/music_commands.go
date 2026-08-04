@@ -342,13 +342,17 @@ func (b *Bot) tryStartPlayback(guildID, textChannelID string, vc *discordgo.Voic
 		b.presence.SetNowPlaying(track.Title, pre.Artist)
 	}
 
-	// Auto-rename voice channel to track title.
-	if b.chanRename != nil && vc != nil && vc.ChannelID != "" {
-		b.chanRename.OnTrackStart(guildID, vc.ChannelID, track.Title)
+	// Set voice channel status to show current track.
+	if b.voiceStatus != nil && vc != nil && vc.ChannelID != "" {
+		b.voiceStatus.OnTrackStart(guildID, vc.ChannelID, track.Title, pre.Artist)
 	}
 
 	// Play the track (blocks until done).  Pre-resolved → no resolve gap.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	// No duration-based timeout: playback ends on real ffmpeg EOF, not on
+	// metadata duration. A hard timeout would cut off long tracks (mixes,
+	// live sets) whose actual audio exceeds the claimed duration. The
+	// player's Stop() method and stopChan handle cancellation.
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	err := b.player.PlayResolved(ctx, vc, guildID, track.Query, pre, func() {
@@ -390,12 +394,12 @@ func (b *Bot) advanceOrFinish(guildID, textChannelID string, vc *discordgo.Voice
 		if b.presence != nil {
 			b.presence.SetIdle()
 		}
-		if b.chanRename != nil {
+		if b.voiceStatus != nil {
 			b.voiceMu.Lock()
 			vc := b.voice[guildID]
 			b.voiceMu.Unlock()
 			if vc != nil && vc.ChannelID != "" {
-				b.chanRename.Restore(guildID, vc.ChannelID)
+				b.voiceStatus.Clear(guildID, vc.ChannelID)
 			}
 		}
 		return
@@ -582,13 +586,13 @@ func (b *Bot) cmdStop(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if b.presence != nil {
 		b.presence.SetIdle()
 	}
-	if b.chanRename != nil {
+	if b.voiceStatus != nil {
 		b.voiceMu.Lock()
 		vc := b.voice[i.GuildID]
 		b.voiceMu.Unlock()
 		if vc != nil && vc.ChannelID != "" {
-			b.chanRename.Restore(i.GuildID, vc.ChannelID)
-			b.chanRename.Forget(i.GuildID)
+			b.voiceStatus.Clear(i.GuildID, vc.ChannelID)
+			b.voiceStatus.Forget(i.GuildID)
 		}
 	}
 	b.respondEphemeralEmbed(s, i, successEmbed("⏹️ Stopped", "Stopped playback and cleared the queue."))
@@ -715,12 +719,13 @@ func (b *Bot) replayCurrent(guildID, textChannelID string, vc *discordgo.VoiceCo
 		b.presence.SetNowPlaying(track.Title, pre.Artist)
 	}
 
-	// Auto-rename voice channel to track title.
-	if b.chanRename != nil && vc != nil && vc.ChannelID != "" {
-		b.chanRename.OnTrackStart(guildID, vc.ChannelID, track.Title)
+	// Set voice channel status to show current track.
+	if b.voiceStatus != nil && vc != nil && vc.ChannelID != "" {
+		b.voiceStatus.OnTrackStart(guildID, vc.ChannelID, track.Title, pre.Artist)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	// No duration-based timeout: playback ends on real ffmpeg EOF.
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	err := b.player.PlayResolved(ctx, vc, guildID, track.Query, pre, func() {

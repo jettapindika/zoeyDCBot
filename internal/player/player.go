@@ -730,11 +730,19 @@ func (p *Player) PlayResolved(ctx context.Context, vc *discordgo.VoiceConnection
 	// Build ffmpeg command to transcode to PCM.
 	// No -re flag: let ffmpeg decode as fast as possible so audio starts immediately.
 	// -reconnect: retry on network hiccups
+	//
+	// The aresample filter ensures the output is exactly 48kHz stereo s16le,
+	// regardless of the source's channel layout. For mono sources, ffmpeg's
+	// default -ac 2 upmix duplicates the mono channel to both L and R, but
+	// some sources have unusual channel layouts (e.g. 2.1, 5.1) that can
+	// cause silent channels if not explicitly remixed to stereo first.
+	// "aformat=channel_layouts=stereo" forces the output to standard stereo.
 	ffmpegArgs := []string{
 		"-reconnect", "1",
 		"-reconnect_streamed", "1",
 		"-reconnect_delay_max", "5",
 		"-i", track.URL,
+		"-af", "aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo",
 		"-f", "s16le",
 		"-ac", fmt.Sprintf("%d", channels),
 		"-ar", fmt.Sprintf("%d", frameRate),
@@ -823,16 +831,26 @@ func (p *Player) PlayResolved(ctx context.Context, vc *discordgo.VoiceConnection
 	}
 }
 
-// sendOpusFrame encodes a PCM frame and sends it to the Discord voice connection.
-func (p *Player) sendOpusFrame(vc *discordgo.VoiceConnection, encoder *gopus.Encoder, pcm []byte, guildID string) error {
-	log := logging.Component("player")
-	// Convert s16le bytes to int16 samples for gopus
+// pcmToSamples converts raw s16le PCM bytes into a slice of int16 samples.
+// This is the format gopus expects. For stereo, samples are interleaved:
+// [L0, R0, L1, R1, ...].
+func pcmToSamples(pcm []byte) ([]int16, error) {
 	if len(pcm)%2 != 0 {
-		return errors.New("odd PCM byte count")
+		return nil, errors.New("odd PCM byte count")
 	}
 	samples := make([]int16, len(pcm)/2)
 	for i := 0; i < len(samples); i++ {
 		samples[i] = int16(binary.LittleEndian.Uint16(pcm[i*2 : i*2+2]))
+	}
+	return samples, nil
+}
+
+// sendOpusFrame encodes a PCM frame and sends it to the Discord voice connection.
+func (p *Player) sendOpusFrame(vc *discordgo.VoiceConnection, encoder *gopus.Encoder, pcm []byte, guildID string) error {
+	log := logging.Component("player")
+	samples, err := pcmToSamples(pcm)
+	if err != nil {
+		return err
 	}
 
 	// Apply volume gain

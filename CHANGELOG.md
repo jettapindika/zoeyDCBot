@@ -5,6 +5,22 @@ Read `docs/feature-matrix.md` for the full feature inventory and status.
 
 ---
 
+## v0.1.2 — 2026-08-04
+
+**Bug fixes:**
+
+- **False "Permission Denied"** — `checkAdmin` now uses the interaction payload's own `i.Member` (fresh roles + computed `Permissions`) instead of re-resolving from stale state cache. Added `IsGuildOwner` bypass and `IsBotOwner` (`ADMIN_USER_IDS` env). Permission checks use bitmask `&` not `==`. 26 table-driven test cases in `internal/admin/admin_test.go`.
+- **Track ends before natural finish** — Removed 30-minute `context.WithTimeout` that killed long tracks. Playback now uses `context.WithCancel` and ends on real ffmpeg `io.EOF`. Test: `TestPCMConsumedUntilRealEOF` (50-pass race).
+- **Mono / right-channel-only audio** — Added explicit `aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo` ffmpeg filter to force standard stereo upmixing regardless of source layout. Extracted `pcmToSamples()` for testability. 3 new tests (50-pass race).
+
+**Feature swap:**
+
+- **Voice Channel Status** (replaces channel rename) — New `internal/voicestatus/` package using Discord's `PUT /channels/{id}/voice-status` endpoint. Sets song title+artist as voice channel status on track start, clears on stop/disconnect. No longer renames the channel.
+
+**Verification:** `go build` ✅ · `go vet` ✅ · `go test ./… -race` ✅ (18/18 packages) · 50-pass race tests ✅
+
+---
+
 ## Cycle 1 — 2026-08-04
 
 **Researched:** Surveyed Carl-bot, Dyno, MEE6, Jockie Music, and Go Discord bot reliability patterns. Catalogued feature gaps across music (loop/repeat, shuffle, seek, remove/move in queue, lyrics, DJ role, vote skip), moderation (warn, unban, AutoMod, mod-log case numbering), and infrastructure (panic recovery, voice reconnection, health checks). Prioritized panic recovery as highest-impact, self-contained, and testable.

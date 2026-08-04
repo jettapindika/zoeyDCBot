@@ -9,7 +9,7 @@ import (
 )
 
 // Version is the current release version of ZoeyDCBot.
-const Version = "0.1.0"
+const Version = "0.1.2"
 
 // cmdVersion shows the bot's version, build info, and useful links.
 func (b *Bot) cmdVersion(s *discordgo.Session, i *discordgo.InteractionCreate) {

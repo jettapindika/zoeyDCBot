@@ -144,9 +144,9 @@ func (b *Bot) commandDefinitions() []*discordgo.ApplicationCommand {
 	// Utility / engagement commands — always available.
 	cmds = append(cmds,
 		&discordgo.ApplicationCommand{Name: "reactionrole", Description: "Create a reaction role message", Options: []*discordgo.ApplicationCommandOption{
+			{Type: discordgo.ApplicationCommandOptionString, Name: "bindings", Description: "emoji:role pairs (e.g. 🔥:@role 😀:123456). Space-separated, up to 20.", Required: true},
 			{Type: discordgo.ApplicationCommandOptionString, Name: "title", Description: "Embed title", Required: false},
 			{Type: discordgo.ApplicationCommandOptionString, Name: "description", Description: "Embed description", Required: false},
-			{Type: discordgo.ApplicationCommandOptionString, Name: "bindings", Description: "emoji:role pairs (e.g. 🔥:@role 😀:123456). Space-separated, up to 20.", Required: true},
 		}},
 		&discordgo.ApplicationCommand{Name: "removerrole", Description: "Remove a reaction role message", Options: []*discordgo.ApplicationCommandOption{
 			{Type: discordgo.ApplicationCommandOptionString, Name: "message_id", Description: "Message ID to remove", Required: true},

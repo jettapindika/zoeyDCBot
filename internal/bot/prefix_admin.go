@@ -20,6 +20,10 @@ func (b *Bot) prefixAdminCheck(s *discordgo.Session, m *discordgo.MessageCreate,
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve your member: %w", err)
 	}
+	// Bot owners bypass all permission checks.
+	if admin.IsBotOwner(m.Author.ID, b.cfg.AdminUserIDs) {
+		return member, nil
+	}
 	// Administrators or admin-role members bypass specific permission checks.
 	if admin.IsAdministrator(s, m.GuildID, m.ChannelID, member, b.cfg.AdminRoleIDs) {
 		return member, nil
