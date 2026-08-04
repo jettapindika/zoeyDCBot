@@ -196,3 +196,38 @@ Read `docs/feature-matrix.md` for the full feature inventory and status.
 - Cycle 10: SQLite persistence layer
 - Cycle 11: Live Rich Presence
 - Cycle 12: Voice channel rename
+
+---
+
+## Cycle 13 — 2026-08-04
+
+**Researched:** User reported voice errors during playback and requested: (1) updated /help covering all 30+ commands, (2) x! prefix support for all commands including new ones, (3) fix for voice disconnection crash, (4) administrators should bypass all moderation permission checks. Investigated logs and found `sendOpusFrame` returning a fatal error when the voice connection drops mid-track, killing playback instead of gracefully advancing.
+
+**Implemented:**
+
+### 1. Updated /help command
+- Rewrote `helpText()` to list all 31 commands organized by category (AI, Admin, Music, Engagement)
+- Added prefix command documentation showing all available `x!` commands
+- Added permission notes for admin commands
+
+### 2. Full x! prefix support
+- Added prefix handlers for: `x!loop`, `x!shuffle`, `x!remove`, `x!lyrics`, `x!move`
+- Added prefix admin commands: `x!purge`, `x!kick`, `x!ban`, `x!timeout`, `x!untimeout`, `x!slowmode`, `x!lock`, `x!unlock`, `x!userinfo`, `x!serverinfo`
+- Created `internal/bot/prefix_admin.go` with `prefixAdminCheck()` that uses `IsAdministrator()` for admin bypass
+- All prefix admin commands log to mod-log channel
+
+### 3. Fixed voice disconnection crash
+- **Root cause:** `sendOpusFrame()` returned `errors.New("voice connection not ready for Opus")` when `vc.Ready` was false or `vc.OpusSend` was nil (voice disconnected mid-track). This error propagated up, killed playback, and posted a scary error embed.
+- **Fix:** When voice connection is gone, `sendOpusFrame` now signals the stop channel so the playback loop exits cleanly via the `stopChan` case (returns nil, not an error). The `onDone` callback fires normally, and `advanceOrFinish` handles the voice-gone case gracefully (already had logic for this at line 408-413).
+- No more `ERROR opus send: voice connection not ready for Opus` crashes.
+
+### 4. Administrator bypass for all commands
+- Added `admin.IsAdministrator()` — fast check that grants access if member has `PermissionAdministrator` bit or is in `ADMIN_ROLE_IDS`
+- All slash command `checkAdmin()` calls already checked for `PermissionAdministrator` at line 50 of `HasPermission()`
+- All prefix admin commands use `prefixAdminCheck()` which calls `IsAdministrator()` first — administrators bypass all specific permission checks
+- Refactored `buildUserInfoEmbed()` and `buildServerInfoEmbed()` out of slash handlers for reuse in prefix commands
+
+**Verification level:** standard
+- `go build ./…` ✅
+- `go vet ./…` ✅
+- `go test -race ./…` ✅ (all packages pass)

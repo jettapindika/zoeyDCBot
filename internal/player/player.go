@@ -693,6 +693,7 @@ func (p *Player) PlayResolved(ctx context.Context, vc *discordgo.VoiceConnection
 
 // sendOpusFrame encodes a PCM frame and sends it to the Discord voice connection.
 func (p *Player) sendOpusFrame(vc *discordgo.VoiceConnection, encoder *gopus.Encoder, pcm []byte, guildID string) error {
+	log := logging.Component("player")
 	// Convert s16le bytes to int16 samples for gopus
 	if len(pcm)%2 != 0 {
 		return errors.New("odd PCM byte count")
@@ -721,7 +722,20 @@ func (p *Player) sendOpusFrame(vc *discordgo.VoiceConnection, encoder *gopus.Enc
 		return fmt.Errorf("opus encode: %w", err)
 	}
 	if !vc.Ready || vc.OpusSend == nil {
-		return errors.New("voice connection not ready for Opus")
+		// Voice connection dropped (disconnect, server move, etc.).
+		// Signal the stop channel so the playback loop exits cleanly
+		// via the stopChan case (returns nil, not an error), and the
+		// onDone callback fires so advanceOrFinish handles it.
+		log.Warn("voice connection gone during playback, stopping gracefully", "guild", guildID)
+		p.mu.Lock()
+		if ch, ok := p.stopChans[guildID]; ok {
+			select {
+			case ch <- struct{}{}:
+			default:
+			}
+		}
+		p.mu.Unlock()
+		return nil
 	}
 	vc.OpusSend <- opus
 	return nil

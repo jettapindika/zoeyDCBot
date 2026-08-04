@@ -65,33 +65,51 @@ func (b *Bot) commandDefinitions() []*discordgo.ApplicationCommand {
 		{Name: "purge", Description: "Delete recent messages from this channel", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionInteger, Name: "amount", Description: "Number of messages to delete (1-100)", Required: true, MinValue: floatPtr(1), MaxValue: 100}}},
 		{Name: "kick", Description: "Kick a member", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionUser, Name: "user", Description: "Member to kick", Required: true}, {Type: discordgo.ApplicationCommandOptionString, Name: "reason", Description: "Reason", Required: false}}},
 		{Name: "ban", Description: "Ban a member", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionUser, Name: "user", Description: "Member to ban", Required: true}, {Type: discordgo.ApplicationCommandOptionString, Name: "reason", Description: "Reason", Required: false}, {Type: discordgo.ApplicationCommandOptionInteger, Name: "delete_days", Description: "Delete message history days (0-7)", Required: false, MinValue: floatPtr(0), MaxValue: 7}}},
-		{Name: "timeout", Description: "Timeout a member", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionUser, Name: "user", Description: "Member to timeout", Required: true}, {Type: discordgo.ApplicationCommandOptionInteger, Name: "minutes", Description: "Timeout length in minutes (1-40320)", Required: true, MinValue: floatPtr(1), MaxValue: 40320}, {Type: discordgo.ApplicationCommandOptionString, Name: "reason", Description: "Reason", Required: false}}},
-		{Name: "untimeout", Description: "Remove timeout from a member", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionUser, Name: "user", Description: "Member to untimeout", Required: true}, {Type: discordgo.ApplicationCommandOptionString, Name: "reason", Description: "Reason", Required: false}}},
-		{Name: "slowmode", Description: "Set channel slowmode", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionInteger, Name: "seconds", Description: "Slowmode seconds (0-21600)", Required: true, MinValue: floatPtr(0), MaxValue: 21600}}},
+		{Name: "timeout", Description: "Timeout a member", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionUser, Name: "user", Description: "Member to timeout", Required: true}, {Type: discordgo.ApplicationCommandOptionInteger, Name: "minutes", Description: "Timeout duration in minutes (up to 43200)", Required: true, MinValue: floatPtr(1), MaxValue: 43200}, {Type: discordgo.ApplicationCommandOptionString, Name: "reason", Description: "Reason", Required: false}}},
+		{Name: "untimeout", Description: "Remove a timeout from a member", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionUser, Name: "user", Description: "Member to remove timeout from", Required: true}, {Type: discordgo.ApplicationCommandOptionString, Name: "reason", Description: "Reason", Required: false}}},
+		{Name: "slowmode", Description: "Set channel slowmode", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionInteger, Name: "seconds", Description: "Slowmode in seconds (0-21600)", Required: true, MinValue: floatPtr(0), MaxValue: 21600}}},
 		{Name: "lock", Description: "Lock this channel for @everyone"},
 		{Name: "unlock", Description: "Unlock this channel for @everyone"},
 	}
+
 	if b.cfg.MusicEnabled {
-		cmds = append(cmds,
-			&discordgo.ApplicationCommand{Name: "play", Description: "Queue a song/query and join your voice channel", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString, Name: "query", Description: "URL or search query (YouTube, Spotify, SoundCloud)", Required: true}}},
-			&discordgo.ApplicationCommand{Name: "queue", Description: "Show the music queue", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionInteger, Name: "page", Description: "Page number (10 tracks per page)", Required: false, MinValue: floatPtr(1)}}},
-			&discordgo.ApplicationCommand{Name: "skip", Description: "Skip the current track"},
-			&discordgo.ApplicationCommand{Name: "stop", Description: "Stop playback and clear the queue"},
-			&discordgo.ApplicationCommand{Name: "pause", Description: "Mark playback paused"},
-			&discordgo.ApplicationCommand{Name: "resume", Description: "Resume playback"},
-			&discordgo.ApplicationCommand{Name: "leave", Description: "Leave voice and clear the queue"},
-			&discordgo.ApplicationCommand{Name: "nowplaying", Description: "Show current track"},
-			&discordgo.ApplicationCommand{Name: "volume", Description: "Set playback volume", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionInteger, Name: "level", Description: "Volume level (0-200, default 100)", Required: true, MinValue: floatPtr(0), MaxValue: 200}}},
-			&discordgo.ApplicationCommand{Name: "loop", Description: "Set repeat mode (off, track, or queue)", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString, Name: "mode", Description: "Repeat mode: off, track, or queue", Required: true, Choices: []*discordgo.ApplicationCommandOptionChoice{{Name: "off", Value: "off"}, {Name: "track", Value: "track"}, {Name: "queue", Value: "queue"}}}}},
-			&discordgo.ApplicationCommand{Name: "shuffle", Description: "Shuffle the music queue"},
-			&discordgo.ApplicationCommand{Name: "remove", Description: "Remove a track from the queue by position", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionInteger, Name: "position", Description: "Position in queue (1-based, see /queue)", Required: true, MinValue: floatPtr(1)}}},
-			&discordgo.ApplicationCommand{Name: "lyrics", Description: "Show lyrics for the current track or a search query", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString, Name: "query", Description: "Song to search (defaults to current track)", Required: false}}},
-			&discordgo.ApplicationCommand{Name: "move", Description: "Move a track to a different position in the queue", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionInteger, Name: "from", Description: "Current position (1-based, see /queue)", Required: true, MinValue: floatPtr(1)}, {Type: discordgo.ApplicationCommandOptionInteger, Name: "to", Description: "New position (1-based)", Required: true, MinValue: floatPtr(1)}}},
-		&discordgo.ApplicationCommand{Name: "reactionrole", Description: "Create a reaction-role message", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString, Name: "description", Description: "Title/description for the reaction-role message", Required: true}, {Type: discordgo.ApplicationCommandOptionString, Name: "bindings", Description: "emoji:@role pairs (e.g. 🎮:@Gamer). Repeat for more.", Required: true}}},
-		&discordgo.ApplicationCommand{Name: "removerrole", Description: "Remove a reaction-role message by ID", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString, Name: "message_id", Description: "Message ID of the reaction-role message", Required: true}}},
-		&discordgo.ApplicationCommand{Name: "starboard", Description: "Configure the starboard channel and threshold", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionChannel, Name: "channel", Description: "Channel for starred messages", Required: false}, {Type: discordgo.ApplicationCommandOptionInteger, Name: "threshold", Description: "Minimum stars required (default: 3)", Required: false, MinValue: floatPtr(1)}}},
-		)
+		musicCmds := []*discordgo.ApplicationCommand{
+			{Name: "play", Description: "Play a song from YouTube, Spotify, or SoundCloud", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString, Name: "query", Description: "URL or search query", Required: true}}},
+			{Name: "queue", Description: "Show the music queue", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionInteger, Name: "page", Description: "Page number (default: 1)", Required: false, MinValue: floatPtr(1)}}},
+			{Name: "skip", Description: "Skip the current track"},
+			{Name: "stop", Description: "Stop playback and clear the queue"},
+			{Name: "pause", Description: "Pause playback"},
+			{Name: "resume", Description: "Resume playback"},
+			{Name: "leave", Description: "Leave voice and clear the queue"},
+			{Name: "nowplaying", Description: "Show the current track"},
+			{Name: "volume", Description: "Set or check volume (0-200)", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionInteger, Name: "level", Description: "Volume level 0-200 (omit to view current)", Required: false, MinValue: floatPtr(0), MaxValue: 200}}},
+			{Name: "loop", Description: "Set loop mode (off, track, queue)", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString, Name: "mode", Description: "Loop mode: off, track, or queue", Required: true}}},
+			{Name: "shuffle", Description: "Shuffle the queue"},
+			{Name: "remove", Description: "Remove a track from the queue", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionInteger, Name: "position", Description: "Position in queue (1 = next up)", Required: true, MinValue: floatPtr(1)}}},
+			{Name: "lyrics", Description: "Show lyrics for the current track"},
+			{Name: "move", Description: "Move a track to a new position in the queue", Options: []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionInteger, Name: "from", Description: "Current position", Required: true, MinValue: floatPtr(1)}, {Type: discordgo.ApplicationCommandOptionInteger, Name: "to", Description: "New position", Required: true, MinValue: floatPtr(1)}}},
+		}
+		cmds = append(cmds, musicCmds...)
 	}
+
+	// Utility / engagement commands — always available.
+	cmds = append(cmds,
+		&discordgo.ApplicationCommand{Name: "reactionrole", Description: "Create a reaction role message", Options: []*discordgo.ApplicationCommandOption{
+			{Type: discordgo.ApplicationCommandOptionString, Name: "title", Description: "Embed title", Required: true},
+			{Type: discordgo.ApplicationCommandOptionString, Name: "description", Description: "Embed description", Required: false},
+		}},
+		&discordgo.ApplicationCommand{Name: "removerrole", Description: "Remove a reaction role message", Options: []*discordgo.ApplicationCommandOption{
+			{Type: discordgo.ApplicationCommandOptionString, Name: "message_id", Description: "Message ID to remove", Required: true},
+		}},
+		&discordgo.ApplicationCommand{Name: "starboard", Description: "Configure the starboard", Options: []*discordgo.ApplicationCommandOption{
+			{Type: discordgo.ApplicationCommandOptionSubCommand, Name: "set", Description: "Set the starboard channel and threshold", Options: []*discordgo.ApplicationCommandOption{
+				{Type: discordgo.ApplicationCommandOptionChannel, Name: "channel", Description: "Starboard channel", Required: true},
+				{Type: discordgo.ApplicationCommandOptionInteger, Name: "threshold", Description: "Stars required (default 3)", Required: false, MinValue: floatPtr(1)},
+			}},
+			{Type: discordgo.ApplicationCommandOptionSubCommand, Name: "disable", Description: "Disable the starboard"},
+		}},
+	)
+
 	return cmds
 }
 
@@ -137,13 +155,40 @@ func floatPtr(f float64) *float64 { return &f }
 
 func helpText(musicEnabled bool) string {
 	var b strings.Builder
-	b.WriteString("**ZoeyDCBot** — AI, administrator, and music assistant.\n\n")
-	b.WriteString("**AI**\n• Mention me, reply to me, or DM me to chat.\n• /clear resets channel context. /ping checks latency. /version shows build info.\n\n")
-	b.WriteString("**Admin**\n• /userinfo, /serverinfo\n• /purge, /kick, /ban, /timeout, /untimeout, /slowmode, /lock, /unlock\n\n")
+	b.WriteString("**ZoeyDCBot** — AI, administrator, and music assistant.\n")
+	b.WriteString("Use slash commands (`/`) or text commands (`x!`). Example: `x!play despacito`.\n\n")
+
+	b.WriteString("**🤖 AI**\n")
+	b.WriteString("• Mention me, reply to me, or DM me to chat.\n")
+	b.WriteString("• `/ping` — latency check  •  `/clear` — reset channel context  •  `/version` — build info\n\n")
+
+	b.WriteString("**🛡️ Admin / Moderation** *(requires permissions or admin role)*\n")
+	b.WriteString("• `/userinfo` `[user]` — user info  •  `/serverinfo` — server info\n")
+	b.WriteString("• `/purge` `<amount>` — delete messages  •  `/slowmode` `<seconds>` — set slowmode\n")
+	b.WriteString("• `/kick` `<user>` `[reason]`  •  `/ban` `<user>` `[reason]` `[delete_days]`\n")
+	b.WriteString("• `/timeout` `<user>` `<minutes>` `[reason]`  •  `/untimeout` `<user>`\n")
+	b.WriteString("• `/lock` / `/unlock` — lock/unlock channel for @everyone\n\n")
+
 	if musicEnabled {
-		b.WriteString("**Music**\n• /play <query> — play from YouTube, Spotify, or SoundCloud (supports playlists!)\n• /queue, /nowplaying, /skip, /stop, /pause, /resume, /leave, /volume\n")
+		b.WriteString("**🎵 Music**\n")
+		b.WriteString("• `/play` `<query>` — play from YouTube, Spotify, or SoundCloud (supports playlists)\n")
+		b.WriteString("• `/queue` `[page]` — view queue  •  `/nowplaying` — current track\n")
+		b.WriteString("• `/skip` — skip  •  `/stop` — stop & clear  •  `/pause` / `/resume`  •  `/leave`\n")
+		b.WriteString("• `/volume` `[level]` — set/view volume (0–200)\n")
+		b.WriteString("• `/loop` `<off|track|queue>` — loop mode\n")
+		b.WriteString("• `/shuffle` — shuffle queue  •  `/remove` `<pos>` — remove track  •  `/move` `<from>` `<to>`\n")
+		b.WriteString("• `/lyrics` — lyrics for current track\n\n")
 	} else {
-		b.WriteString("Music commands are disabled by MUSIC_ENABLED=false.\n")
+		b.WriteString("Music commands are disabled (`MUSIC_ENABLED=false`).\n\n")
 	}
+
+	b.WriteString("**✨ Engagement**\n")
+	b.WriteString("• `/reactionrole` — create a reaction role message\n")
+	b.WriteString("• `/removerrole` — remove a reaction role message\n")
+	b.WriteString("• `/starboard` `set|disable` — configure starboard\n\n")
+
+	b.WriteString("**Prefix Commands** (`x!`)\n")
+	b.WriteString("Most commands also work with `x!` prefix: `x!ping`, `x!play`, `x!skip`, `x!queue`, `x!nowplaying`, `x!volume`, `x!loop`, `x!shuffle`, `x!remove`, `x!lyrics`, `x!move`, `x!pause`, `x!resume`, `x!stop`, `x!leave`, `x!help`, `x!version`, `x!clear`.\n")
+
 	return b.String()
 }

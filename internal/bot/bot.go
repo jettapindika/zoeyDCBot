@@ -369,6 +369,36 @@ func (b *Bot) handlePrefixCommand(s *discordgo.Session, m *discordgo.MessageCrea
 		b.runPrefixMusicAction(s, m, "leave")
 	case "volume", "vol":
 		b.runPrefixMusicAction(s, m, "volume "+args)
+	case "loop":
+		b.runPrefixMusicAction(s, m, "loop "+args)
+	case "shuffle":
+		b.runPrefixMusicAction(s, m, "shuffle")
+	case "remove":
+		b.runPrefixMusicAction(s, m, "remove "+args)
+	case "lyrics":
+		b.runPrefixMusicAction(s, m, "lyrics")
+	case "move":
+		b.runPrefixMusicAction(s, m, "move "+args)
+	case "purge":
+		b.handlePrefixPurge(s, m, args)
+	case "kick":
+		b.handlePrefixKick(s, m, args)
+	case "ban":
+		b.handlePrefixBan(s, m, args)
+	case "timeout":
+		b.handlePrefixTimeout(s, m, args)
+	case "untimeout":
+		b.handlePrefixUntimeout(s, m, args)
+	case "slowmode":
+		b.handlePrefixSlowmode(s, m, args)
+	case "lock":
+		b.handlePrefixLock(s, m)
+	case "unlock":
+		b.handlePrefixUnlock(s, m)
+	case "userinfo":
+		b.handlePrefixUserInfo(s, m, args)
+	case "serverinfo":
+		b.handlePrefixServerInfo(s, m)
 	default:
 		_, _ = s.ChannelMessageSendEmbed(m.ChannelID, warnEmbed("Unknown Command",
 			fmt.Sprintf("`x!%s` is not a recognised command. Try `x!help`.", cmd)))
@@ -496,6 +526,123 @@ func (b *Bot) runPrefixMusicAction(s *discordgo.Session, m *discordgo.MessageCre
 		b.music.Stop(m.GuildID)
 		b.disconnectVoice(m.GuildID)
 		_, _ = s.ChannelMessageSendEmbed(m.ChannelID, successEmbed("👋 Left Voice", "Left the voice channel and cleared the queue."))
+	case "loop":
+		modeStr := ""
+		if len(parts) > 1 {
+			modeStr = strings.ToLower(parts[1])
+		}
+		var mode music.LoopMode
+		var label, emoji string
+		switch modeStr {
+		case "track":
+			mode = music.LoopTrack
+			label = "Track"
+			emoji = "🔂"
+		case "queue":
+			mode = music.LoopQueue
+			label = "Queue"
+			emoji = "🔁"
+		default:
+			mode = music.LoopOff
+			label = "Off"
+			emoji = "➡️"
+		}
+		b.music.SetLoopMode(m.GuildID, mode)
+		desc := fmt.Sprintf("Repeat mode set to **%s**.", label)
+		if mode == music.LoopOff {
+			desc = "Repeat mode **disabled**."
+		}
+		_, _ = s.ChannelMessageSendEmbed(m.ChannelID, successEmbed(fmt.Sprintf("%s Loop %s", emoji, label), desc))
+	case "shuffle":
+		n := b.music.Shuffle(m.GuildID)
+		if n < 2 {
+			_, _ = s.ChannelMessageSendEmbed(m.ChannelID, warnEmbed("🔀 Nothing to Shuffle", "Need at least 2 tracks in the queue to shuffle."))
+			return
+		}
+		_, _ = s.ChannelMessageSendEmbed(m.ChannelID, successEmbed("🔀 Shuffled", fmt.Sprintf("Shuffled **%d** tracks in the queue.", n)))
+	case "remove":
+		pos := 0
+		if len(parts) > 1 {
+			fmt.Sscanf(parts[1], "%d", &pos)
+		}
+		if pos < 1 {
+			_, _ = s.ChannelMessageSendEmbed(m.ChannelID, warnEmbed("Invalid Position", "Position must be at least 1. Use  to see positions."))
+			return
+		}
+		track, ok := b.music.Remove(m.GuildID, pos)
+		if !ok {
+			_, _ = s.ChannelMessageSendEmbed(m.ChannelID, warnEmbed("Invalid Position", fmt.Sprintf("Position %d is not in the queue. Use  to see valid positions.", pos)))
+			return
+		}
+		_, _ = s.ChannelMessageSendEmbed(m.ChannelID, successEmbed("🗑️ Removed", fmt.Sprintf("Removed **%s** from position %d.", track.Display(), pos)))
+	case "lyrics":
+		query := strings.TrimSpace(strings.TrimPrefix(action, "lyrics"))
+		if query == "" {
+			_, now, _ := b.music.Queue(m.GuildID)
+			if now == nil {
+				_, _ = s.ChannelMessageSendEmbed(m.ChannelID, warnEmbed("No Track", "Nothing is playing. Provide a search query: .")) 
+				return
+			}
+			query = now.Title
+			if now.Artist != "" {
+				query = now.Artist + " " + now.Title
+			}
+		}
+		_, _ = s.ChannelMessageSendEmbed(m.ChannelID, infoEmbed("🎵 Searching…", fmt.Sprintf("Looking up lyrics for **%s**", query)))
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		result, err := b.lyrics.Search(ctx, query, "")
+		if err != nil {
+			_, _ = s.ChannelMessageSendEmbed(m.ChannelID, warnEmbed("No Lyrics Found", fmt.Sprintf("Couldn't find lyrics for **%s**.\n\n`%v`", query, err)))
+			return
+		}
+		if result.Instrumental {
+			title := fmt.Sprintf("🎵 %s — %s", result.ArtistName, result.TrackName)
+			_, _ = s.ChannelMessageSendEmbed(m.ChannelID, infoEmbed(title, "🎼 This track is **instrumental** — no lyrics."))
+			return
+		}
+		lyricsText := strings.TrimSpace(result.PlainLyrics)
+		if lyricsText == "" {
+			_, _ = s.ChannelMessageSendEmbed(m.ChannelID, warnEmbed("No Lyrics Found", fmt.Sprintf("Found **%s — %s** but no plain lyrics are available.", result.ArtistName, result.TrackName)))
+			return
+		}
+		const maxLen = 4000
+		if len(lyricsText) > maxLen {
+			lyricsText = lyricsText[:maxLen-10] + "\n\n…"
+		}
+		title := fmt.Sprintf("🎵 %s — %s", result.ArtistName, result.TrackName)
+		footer := ""
+		if result.AlbumName != "" {
+			footer = "Album: " + result.AlbumName
+		}
+		embed := &discordgo.MessageEmbed{
+			Title:       title,
+			Description: lyricsText,
+			Color:       colorGreen,
+		}
+		if footer != "" {
+			embed.Footer = &discordgo.MessageEmbedFooter{Text: footer}
+		}
+		_, _ = s.ChannelMessageSendEmbed(m.ChannelID, embed)
+	case "move":
+		from, to := 0, 0
+		if len(parts) >= 2 {
+			fmt.Sscanf(parts[1], "%d", &from)
+		}
+		if len(parts) >= 3 {
+			fmt.Sscanf(parts[2], "%d", &to)
+		}
+		if from < 1 || to < 1 {
+			_, _ = s.ChannelMessageSendEmbed(m.ChannelID, warnEmbed("Invalid Position", "Positions must be at least 1. Use  to see positions."))
+			return
+		}
+		track, ok := b.music.Move(m.GuildID, from, to)
+		if !ok {
+			queueLen := b.music.Len(m.GuildID)
+			_, _ = s.ChannelMessageSendEmbed(m.ChannelID, warnEmbed("Invalid Move", fmt.Sprintf("Check positions (queue has %d tracks). Use  to see valid positions.", queueLen)))
+			return
+		}
+		_, _ = s.ChannelMessageSendEmbed(m.ChannelID, successEmbed("📝 Moved", fmt.Sprintf("Moved **%s** from position %d to position %d.", track.Display(), from, to)))
 	}
 }
 

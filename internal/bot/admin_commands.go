@@ -305,6 +305,11 @@ func (b *Bot) cmdUserInfo(s *discordgo.Session, i *discordgo.InteractionCreate) 
 			member = m
 		}
 	}
+	b.respondEphemeralEmbed(s, i, buildUserInfoEmbed(user, member))
+}
+
+// buildUserInfoEmbed creates the user info embed from a user + optional member.
+func buildUserInfoEmbed(user *discordgo.User, member *discordgo.Member) *discordgo.MessageEmbed {
 	embed := &discordgo.MessageEmbed{
 		Title: "👤 User Info",
 		Color: 0x5865F2,
@@ -328,7 +333,7 @@ func (b *Bot) cmdUserInfo(s *discordgo.Session, i *discordgo.InteractionCreate) 
 	if user.Avatar != "" {
 		embed.Thumbnail = &discordgo.MessageEmbedThumbnail{URL: user.AvatarURL("128")}
 	}
-	b.respondEphemeralEmbed(s, i, embed)
+	return embed
 }
 
 func (b *Bot) cmdServerInfo(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -344,6 +349,11 @@ func (b *Bot) cmdServerInfo(s *discordgo.Session, i *discordgo.InteractionCreate
 			return
 		}
 	}
+	b.respondEphemeralEmbed(s, i, buildServerInfoEmbed(guild))
+}
+
+// buildServerInfoEmbed creates the server info embed from a guild.
+func buildServerInfoEmbed(guild *discordgo.Guild) *discordgo.MessageEmbed {
 	memberCount := guild.MemberCount
 	if memberCount == 0 {
 		memberCount = len(guild.Members)
@@ -366,5 +376,5 @@ func (b *Bot) cmdServerInfo(s *discordgo.Session, i *discordgo.InteractionCreate
 	if guild.Icon != "" {
 		embed.Thumbnail = &discordgo.MessageEmbedThumbnail{URL: guild.IconURL("128")}
 	}
-	b.respondEphemeralEmbed(s, i, embed)
+	return embed
 }

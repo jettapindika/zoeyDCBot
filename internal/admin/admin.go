@@ -26,6 +26,31 @@ func HasAnyRole(member *discordgo.Member, roleIDs []string) bool {
 	return false
 }
 
+// IsAdministrator reports whether the member has the Discord Administrator
+// permission or is in the configured admin-roles list. This is a fast check
+// for gating high-risk commands without needing a specific permission bit.
+func IsAdministrator(s *discordgo.Session, guildID, channelID string, member *discordgo.Member, adminRoleIDs []string) bool {
+	if HasAnyRole(member, adminRoleIDs) {
+		return true
+	}
+	if member == nil || member.User == nil {
+		return false
+	}
+	// Administrators always have all permissions.
+	if member.Permissions&discordgo.PermissionAdministrator != 0 {
+		return true
+	}
+	// Fall back to resolved permissions if member.Permissions is empty.
+	perms, err := s.UserChannelPermissions(member.User.ID, channelID)
+	if err != nil && s.State != nil {
+		perms, err = s.State.UserChannelPermissions(member.User.ID, channelID)
+	}
+	if err != nil {
+		return false
+	}
+	return perms&discordgo.PermissionAdministrator != 0
+}
+
 // HasPermission checks the member's guild/channel permissions, falling back to
 // configured admin roles. Administrators always pass Discord permission checks.
 func HasPermission(s *discordgo.Session, guildID, channelID string, member *discordgo.Member, adminRoleIDs []string, perm int64) (bool, error) {
