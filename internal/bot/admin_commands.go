@@ -30,6 +30,10 @@ func (b *Bot) checkAdmin(i *discordgo.InteractionCreate, perm int64) (*discordgo
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve your member: %w", err)
 	}
+	// Administrators or admin-role members bypass specific permission checks.
+	if admin.IsAdministrator(b.sess, guildID, i.ChannelID, member, b.cfg.AdminRoleIDs) {
+		return member, nil
+	}
 	ok, err := admin.HasPermission(b.sess, guildID, i.ChannelID, member, b.cfg.AdminRoleIDs, perm)
 	if err != nil {
 		return nil, fmt.Errorf("permission check failed: %w", err)
