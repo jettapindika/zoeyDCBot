@@ -1,6 +1,6 @@
 # ZoeyDCBot — Feature Matrix
 
-Last updated: 2026-08-04 (Cycle 6)
+Last updated: 2026-08-04 (Cycle 7)
 
 ## Status legend
 - ✅ Implemented and tested
@@ -132,7 +132,7 @@ Last updated: 2026-08-04 (Cycle 6)
 | Pagination (queue, help) | ⚠️ | Queue pagination implemented (10/page); help not paginated |
 | Localization (multi-language) | ❌ | Not planned |
 | Welcome/goodbye messages | ❌ | Not implemented |
-| Reaction roles | ❌ | Not implemented |
+| Reaction roles | ✅ | `/reactionrole` creates emoji→role message; `/removerrole` removes it; `internal/roles/` Manager |
 | Custom status / activity | ❌ | Fork supports `UpdateCustomStatus`; not used |
 
 ## Open Items from Prior Work (Backlog)

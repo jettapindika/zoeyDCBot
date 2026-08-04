@@ -27,6 +27,7 @@ import (
 	"github.com/jettapindika/zoeyDCBot/internal/memory"
 	"github.com/jettapindika/zoeyDCBot/internal/music"
 	"github.com/jettapindika/zoeyDCBot/internal/player"
+	"github.com/jettapindika/zoeyDCBot/internal/roles"
 	"github.com/jettapindika/zoeyDCBot/internal/recoverutil"
 )
 
@@ -34,7 +35,8 @@ import (
 const DefaultIntents = discordgo.IntentsGuildMessages |
 	discordgo.IntentsMessageContent |
 	discordgo.IntentsDirectMessages |
-	discordgo.IntentsGuildVoiceStates
+	discordgo.IntentsGuildVoiceStates |
+	discordgo.IntentsGuildMessageReactions
 
 // Bot is the top-level Discord+AI application.
 type Bot struct {
@@ -46,6 +48,7 @@ type Bot struct {
 	player  *player.Player
 	lyrics  *lyrics.Client
 	automod *automod.Engine
+	roles   *roles.Manager
 
 	queue    chan job
 	shutdown chan struct{}
@@ -81,6 +84,7 @@ func New(cfg *config.Config) (*Bot, error) {
 		music:    music.NewManager(cfg.MusicMaxQueue),
 		player:   player.New(cfg.YtdlpPath, cfg.FfmpegPath),
 		lyrics:   lyrics.New(),
+		roles:   roles.New(),
 		automod: automod.New(automod.Rules{
 			SpamEnabled:       cfg.AutoModEnabled && cfg.AutoModSpamMax > 0,
 			SpamMaxMessages:   cfg.AutoModSpamMax,
@@ -106,6 +110,8 @@ func New(cfg *config.Config) (*Bot, error) {
 	sess.AddHandler(b.onInteractionCreate)
 	sess.AddHandler(b.onMessageDelete)
 	sess.AddHandler(b.onMessageUpdate)
+	sess.AddHandler(b.onReactionAdd)
+	sess.AddHandler(b.onReactionRemove)
 
 	return b, nil
 }
@@ -819,6 +825,10 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			b.cmdLyrics(s, i)
 		case "move":
 			b.cmdMove(s, i)
+		case "reactionrole":
+			b.cmdReactionRole(s, i)
+		case "removerrole":
+			b.cmdRemoveReactionRole(s, i)
 		default:
 			b.respondEphemeralEmbed(s, i, warnEmbed("Unknown Command", "This command is not recognised."))
 		}

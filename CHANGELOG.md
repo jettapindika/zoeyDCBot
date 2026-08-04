@@ -123,9 +123,33 @@ Read `docs/feature-matrix.md` for the full feature inventory and status.
 
 ---
 
+## Cycle 7 — 2026-08-04
+
+**Researched:** Reaction roles are a core feature in Carl-bot, Dyno, and MEE6. A message is posted with emoji-role bindings; users react to get roles and unreact to lose them. Discord gateway fires `MessageReactionAdd` and `MessageReactionRemove` events. The discordgo fork supports both events including `MessageReactionRemoveEmoji` (bulk emoji removal). Requires `IntentsGuildMessageReactions` intent.
+
+**Implemented:** Reaction roles — `/reactionrole` and `/removerrole` commands.
+- Created `internal/roles/` package with `Manager`, `Message`, `Binding` types
+- `Manager` stores emoji→role bindings per message ID in-memory (concurrency-safe with `sync.RWMutex`)
+- `/reactionrole <description> <bindings>` — creates an embed with the description and emoji→role list, posts it, reacts with each emoji, and registers the message with the manager. Parses `emoji:@role` or `emoji:roleID` format. Validates role existence via State. Max 20 bindings per message.
+- `/removerrole <message_id>` — deletes the reaction-role message and unregisters it
+- `onReactionAdd` handler: looks up the message, finds the role for the emoji, calls `GuildMemberRoleAdd`. Ignores bot's own reactions.
+- `onReactionRemove` handler: reverse of add — removes the role
+- Both handlers wrapped with `recoverutil.Recover`
+- Added `IntentsGuildMessageReactions` to `DefaultIntents`
+- Both commands require `ManageRoles` permission (user + bot)
+- 4 unit tests including 50-pass concurrent access test
+
+**Verification level:** 50-pass race detector
+- `go build ./…` ✅
+- `go vet ./…` ✅
+- `go test ./…` ✅ (all packages)
+- `go test -race ./…` ✅ (full suite)
+- `go test -race -count=50 ./internal/roles/` ✅ (0 failures)
+
+---
+
 ## Backlog (future cycles)
 
-- Cycle 7: Reaction roles
 - Cycle 8: Welcome/goodbye messages
 - Cycle 9: Starboard
 - Cycle 10: SQLite persistence layer
