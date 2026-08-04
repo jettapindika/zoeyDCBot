@@ -342,6 +342,11 @@ func (b *Bot) tryStartPlayback(guildID, textChannelID string, vc *discordgo.Voic
 		b.presence.SetNowPlaying(track.Title, pre.Artist)
 	}
 
+	// Auto-rename voice channel to track title.
+	if b.chanRename != nil && vc != nil && vc.ChannelID != "" {
+		b.chanRename.OnTrackStart(guildID, vc.ChannelID, track.Title)
+	}
+
 	// Play the track (blocks until done).  Pre-resolved → no resolve gap.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
@@ -384,6 +389,14 @@ func (b *Bot) advanceOrFinish(guildID, textChannelID string, vc *discordgo.Voice
 		b.music.ClearNowPlaying(guildID)
 		if b.presence != nil {
 			b.presence.SetIdle()
+		}
+		if b.chanRename != nil {
+			b.voiceMu.Lock()
+			vc := b.voice[guildID]
+			b.voiceMu.Unlock()
+			if vc != nil && vc.ChannelID != "" {
+				b.chanRename.Restore(guildID, vc.ChannelID)
+			}
 		}
 		return
 	}
@@ -569,6 +582,15 @@ func (b *Bot) cmdStop(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if b.presence != nil {
 		b.presence.SetIdle()
 	}
+	if b.chanRename != nil {
+		b.voiceMu.Lock()
+		vc := b.voice[i.GuildID]
+		b.voiceMu.Unlock()
+		if vc != nil && vc.ChannelID != "" {
+			b.chanRename.Restore(i.GuildID, vc.ChannelID)
+			b.chanRename.Forget(i.GuildID)
+		}
+	}
 	b.respondEphemeralEmbed(s, i, successEmbed("⏹️ Stopped", "Stopped playback and cleared the queue."))
 }
 
@@ -691,6 +713,11 @@ func (b *Bot) replayCurrent(guildID, textChannelID string, vc *discordgo.VoiceCo
 	// Update bot presence to show current track.
 	if b.presence != nil {
 		b.presence.SetNowPlaying(track.Title, pre.Artist)
+	}
+
+	// Auto-rename voice channel to track title.
+	if b.chanRename != nil && vc != nil && vc.ChannelID != "" {
+		b.chanRename.OnTrackStart(guildID, vc.ChannelID, track.Title)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)

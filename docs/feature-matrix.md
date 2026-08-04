@@ -1,6 +1,6 @@
 # ZoeyDCBot — Feature Matrix
 
-Last updated: 2026-08-04 (Cycle 11)
+Last updated: 2026-08-04 (Cycle 12)
 
 ## Status legend
 - ✅ Implemented and tested
@@ -90,7 +90,7 @@ Last updated: 2026-08-04 (Cycle 11)
 | Queue duration / ETA | ✅ | `FormatQueue` |
 | Progress bar on Now Playing | ✅ | `embed.go` |
 | Live Rich Presence (bot status = current track) | ✅ | `internal/presence/` Manager — "Listening to" activity with track title/artist; idle on stop/leave |
-| Voice channel auto-rename to track name | ❌ | `internal/channelrename/` not created |
+| Voice channel auto-rename to track name | ✅ | `internal/channelrename/` Manager — debounced rename, restores original on stop/leave |
 | Now Playing selection UI (ambiguous matches) | ❌ | Not implemented |
 | Lyrics sync | ❌ | Not planned |
 | DJ role / music permission | ❌ | Not implemented |

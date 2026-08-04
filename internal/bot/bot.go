@@ -21,6 +21,7 @@ import (
 
 	"github.com/jettapindika/zoeyDCBot/internal/ai"
 	"github.com/jettapindika/zoeyDCBot/internal/automod"
+	"github.com/jettapindika/zoeyDCBot/internal/channelrename"
 	"github.com/jettapindika/zoeyDCBot/internal/config"
 	"github.com/jettapindika/zoeyDCBot/internal/logging"
 	"github.com/jettapindika/zoeyDCBot/internal/lyrics"
@@ -56,6 +57,7 @@ type Bot struct {
 	starboard *starboard.Engine
 	store    *store.Store
 	presence *presence.Manager
+	chanRename *channelrename.Manager
 
 	queue    chan job
 	shutdown chan struct{}
@@ -104,6 +106,7 @@ func New(cfg *config.Config) (*Bot, error) {
 		roles:     roles.New(),
 		starboard: starboard.New(cfg.StarboardThreshold, "⭐"),
 		presence: presence.New(sess, "/help for commands"),
+		chanRename: channelrename.New(sess, 2000),
 		store:    db,
 		automod: automod.New(automod.Rules{
 			SpamEnabled:       cfg.AutoModEnabled && cfg.AutoModSpamMax > 0,
