@@ -29,6 +29,7 @@ import (
 	"github.com/jettapindika/zoeyDCBot/internal/player"
 	"github.com/jettapindika/zoeyDCBot/internal/roles"
 	"github.com/jettapindika/zoeyDCBot/internal/starboard"
+	"github.com/jettapindika/zoeyDCBot/internal/store"
 	"github.com/jettapindika/zoeyDCBot/internal/recoverutil"
 )
 
@@ -52,6 +53,7 @@ type Bot struct {
 	automod *automod.Engine
 	roles     *roles.Manager
 	starboard *starboard.Engine
+	store    *store.Store
 
 	queue    chan job
 	shutdown chan struct{}
@@ -79,6 +81,16 @@ func New(cfg *config.Config) (*Bot, error) {
 	}
 	sess.Identify.Intents = DefaultIntents
 
+	// Open SQLite store for persistence (optional — bot works without it).
+	var db *store.Store
+	if cfg.DBPath != "" {
+		if s, err := store.Open(cfg.DBPath); err != nil {
+			logging.Component("bot").Warn("sqlite store failed to open, continuing without persistence", "err", err)
+		} else {
+			db = s
+		}
+	}
+
 	b := &Bot{
 		cfg:      cfg,
 		sess:     sess,
@@ -89,6 +101,7 @@ func New(cfg *config.Config) (*Bot, error) {
 		lyrics:   lyrics.New(),
 		roles:     roles.New(),
 		starboard: starboard.New(cfg.StarboardThreshold, "⭐"),
+		store:    db,
 		automod: automod.New(automod.Rules{
 			SpamEnabled:       cfg.AutoModEnabled && cfg.AutoModSpamMax > 0,
 			SpamMaxMessages:   cfg.AutoModSpamMax,
@@ -149,6 +162,9 @@ func (b *Bot) Run() error {
 	close(b.shutdown)
 	b.wg.Wait()
 	b.disconnectAllVoice()
+	if b.store != nil {
+		_ = b.store.Close()
+	}
 	_ = b.sess.Close()
 	log.Info("bye")
 	return nil

@@ -52,6 +52,9 @@ type Config struct {
 	AutoModBannedWords   []string
 	AutoModExemptRoles   []string
 
+	// Persistence
+	DBPath string // SQLite database path (default: zoeydcbot.db)
+
 	// Starboard
 	StarboardChannelID string
 	StarboardThreshold int
@@ -118,6 +121,8 @@ func Load() (*Config, error) {
 		AutoModWordAction:  strings.TrimSpace(os.Getenv("AUTOMOD_WORD_ACTION")),
 		AutoModBannedWords: splitCSV(os.Getenv("AUTOMOD_BANNED_WORDS")),
 		AutoModExemptRoles: splitCSV(os.Getenv("AUTOMOD_EXEMPT_ROLES")),
+
+		DBPath:              strings.TrimSpace(os.Getenv("DB_PATH")),
 
 		StarboardChannelID: strings.TrimSpace(os.Getenv("STARBOARD_CHANNEL_ID")),
 		StarboardThreshold: envInt("STARBOARD_THRESHOLD", 3),

@@ -1,6 +1,6 @@
 # ZoeyDCBot — Feature Matrix
 
-Last updated: 2026-08-04 (Cycle 9)
+Last updated: 2026-08-04 (Cycle 10)
 
 ## Status legend
 - ✅ Implemented and tested
@@ -24,7 +24,7 @@ Last updated: 2026-08-04 (Cycle 9)
 | Request timeout | ✅ | `LLM_TIMEOUT_SECONDS` |
 | Worker pool concurrency limit | ✅ | `MAX_WORKERS` + `QUEUE_SIZE` |
 | `x!` prefix commands | ✅ | Routes to command handlers, not AI |
-| Conversation persistence across restarts | ❌ | In-memory only; SQLite proposed but not built |
+| Conversation persistence across restarts | ✅ | `internal/store/` SQLite — `DB_PATH` env var; optional, in-memory if empty |
 | Per-user context (not per-channel) | ❌ | Not planned |
 | Image/multimodal input | ❌ | Not planned |
 | Tool calling / function calling | ❌ | Not planned |
@@ -110,7 +110,7 @@ Last updated: 2026-08-04 (Cycle 9)
 | Deploy script | ✅ | `deploy_zoey.sh` |
 | Reconnect/resume on gateway disconnect | ⚠️ | discordgo handles reconnect, but no custom resume logic |
 | Rate-limit-aware request handling | ⚠️ | discordgo has internal rate limiter, but no custom backoff |
-| SQLite persistence | ❌ | Decided but not implemented |
+| SQLite persistence | ✅ | `internal/store/` — conversations, music queue, settings; `modernc.org/sqlite` (pure Go) |
 | Health check / readiness endpoint | ❌ | Not implemented |
 | Metrics / observability | ❌ | Not implemented |
 | Bot package tests | ❌ | `internal/bot/` has zero test files |
