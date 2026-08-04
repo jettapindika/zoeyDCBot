@@ -739,6 +739,7 @@ func (s *Session) ChannelVoiceJoin(gID, cID string, mute, deaf bool) (voice *Voi
 	voice.deaf = deaf
 	voice.mute = mute
 	voice.session = s
+	voice.LogLevel = LogDebug // verbose voice handshake logging
 	voice.Unlock()
 
 	err = s.ChannelVoiceJoinManual(gID, cID, mute, deaf)
@@ -831,9 +832,16 @@ func (s *Session) onVoiceServerUpdate(st *VoiceServerUpdate) {
 		return
 	}
 
-	// If currently connected to voice ws/udp, then disconnect.
-	// Has no effect if not connected.
-	voice.Close()
+	// Only close existing connections if we actually have one open.
+	// On a fresh join, wsConn/udpConn are nil and Close() would race with
+	// the open() call below (Close sets close=nil, then open creates a new
+	// close channel — but if they interleave, wsListen can get a nil close).
+	voice.RLock()
+	needClose := voice.wsConn != nil || voice.udpConn != nil
+	voice.RUnlock()
+	if needClose {
+		voice.Close()
+	}
 
 	// Store values for later use
 	voice.Lock()

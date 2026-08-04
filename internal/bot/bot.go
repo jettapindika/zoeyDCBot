@@ -10,6 +10,7 @@ package bot
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"strings"
@@ -84,6 +85,29 @@ func New(cfg *config.Config) (*Bot, error) {
 		return nil, fmt.Errorf("discord session: %w", err)
 	}
 	sess.Identify.Intents = DefaultIntents
+
+	// Route discordgo fork internal logs through our slog logger so voice
+	// handshake progress is visible. The fork uses numeric log levels:
+	// 0=Error, 1=Warning, 2=Informational, 3=Debug.
+	discordgo.Logger = func(msgL, caller int, format string, a ...interface{}) {
+		msg := fmt.Sprintf(format, a...)
+		// Redact the bot token if it appears in the message (e.g. in the
+		// Identify packet debug log).
+		if strings.Contains(msg, "Token:\"Bot ") {
+			msg = "[redacted identify packet]"
+		}
+		switch msgL {
+		case 0:
+			slog.Error("discordgo", "msg", msg)
+		case 1:
+			slog.Warn("discordgo", "msg", msg)
+		case 2:
+			slog.Info("discordgo", "msg", msg)
+		default:
+			slog.Debug("discordgo", "msg", msg)
+		}
+	}
+	sess.LogLevel = discordgo.LogWarning // gateway: only warnings/errors; voice connections get LogDebug separately
 
 	// Open SQLite store for persistence (optional — bot works without it).
 	var db *store.Store

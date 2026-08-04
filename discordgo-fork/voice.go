@@ -269,7 +269,16 @@ func (v *VoiceConnection) waitUntilConnected() error {
 
 	v.log(LogInformational, "called")
 
-	i := 0
+	// Poll every 100ms for up to 30 seconds. The voice handshake involves
+	// multiple round-trips (VOICE_STATE_UPDATE → VOICE_SERVER_UPDATE → WS
+	// connect → OP2 READY → UDP hole-punch → OP4 encryption key) and can
+	// take longer than the original 10s on slower networks or when Discord
+	// is slow to dispatch the initial events.
+	timeout := 30 * time.Second
+	deadline := time.After(timeout)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
 	for {
 		v.RLock()
 		ready := v.Ready
@@ -278,12 +287,12 @@ func (v *VoiceConnection) waitUntilConnected() error {
 			return nil
 		}
 
-		if i > 10 {
-			return fmt.Errorf("timeout waiting for voice")
+		select {
+		case <-deadline:
+			return fmt.Errorf("timeout waiting for voice after %s", timeout)
+		case <-ticker.C:
+			// continue polling
 		}
-
-		time.Sleep(1 * time.Second)
-		i++
 	}
 }
 
@@ -303,14 +312,18 @@ func (v *VoiceConnection) open() (err error) {
 		return
 	}
 
-	// TODO temp? loop to wait for the SessionID
+	// Wait for the SessionID to arrive via VOICE_STATE_UPDATE.
+	// The original 1-second window is too short — Discord can take several
+	// seconds to dispatch the event, especially on first join. We poll every
+	// 50ms for up to 15 seconds, releasing the lock between checks so
+	// onVoiceStateUpdate can populate sessionID.
 	i := 0
 	for {
 		if v.sessionID != "" {
 			break
 		}
 
-		if i > 20 { // only loop for up to 1 second total
+		if i > 300 { // 300 × 50ms = 15 seconds
 			return fmt.Errorf("did not receive voice Session ID in time")
 		}
 		// Release the lock, so sessionID can be populated upon receiving a VoiceStateUpdate event.
@@ -341,7 +354,7 @@ func (v *VoiceConnection) open() (err error) {
 		Op   int                `json:"op"` // Always 0
 		Data voiceHandshakeData `json:"d"`
 	}
-	data := voiceHandshakeOp{0, voiceHandshakeData{v.GuildID, v.UserID, v.sessionID, v.token, 0}}
+	data := voiceHandshakeOp{0, voiceHandshakeData{v.GuildID, v.UserID, v.sessionID, v.token, 1}}
 
 	v.wsMutex.Lock()
 	err = v.wsConn.WriteJSON(data)
@@ -374,7 +387,12 @@ func (v *VoiceConnection) wsListen(wsConn *websocket.Conn, close <-chan struct{}
 			// 4017 indicates DAVE protocol required but not supported;
 			// we shouldn't reconnect.
 			if websocket.IsCloseError(err, 4014, 4017) {
-				v.log(LogInformational, "received 4014 manual disconnection")
+				// Distinguish the two close codes for diagnostics.
+				closeCode := 0
+				if ce, ok := err.(*websocket.CloseError); ok {
+					closeCode = ce.Code
+				}
+				v.log(LogInformational, "voice WS closed by server, code=%d (4014=manual disconnect, 4017=DAVE required)", closeCode)
 
 				// Abandon the voice WS connection
 				v.Lock()
@@ -393,12 +411,12 @@ func (v *VoiceConnection) wsListen(wsConn *websocket.Conn, close <-chan struct{}
 					if !reconnected {
 						continue
 					}
-					v.log(LogInformational, "successfully reconnected after 4014 manual disconnection")
+					v.log(LogInformational, "successfully reconnected after voice WS close code=%d", closeCode)
 					return
 				}
 
 				// When VOICE_SERVER_UPDATE is not received, disconnect as usual.
-				v.log(LogInformational, "disconnect due to 4014 manual disconnection")
+				v.log(LogInformational, "disconnect due to voice WS close code=%d (no VOICE_SERVER_UPDATE received)", closeCode)
 
 				v.session.Lock()
 				delete(v.session.VoiceConnections, v.GuildID)
@@ -533,15 +551,22 @@ func (v *VoiceConnection) onEvent(isBinary bool, message []byte) {
 
 		var daveKPData []byte
 		v.log(LogInformational, "DAVE protocol version %d", v.op4.DAVEProtocolVersion)
-		// DAVE protocol disabled: the fork's MLS/DAVE implementation is incomplete
-		// and can corrupt audio frames. We rely on transport encryption only.
-		if false && v.op4.DAVEProtocolVersion > 0 {
+		// DAVE protocol: Discord now requires DAVE v1 for voice connections.
+		// We advertise max_dave_protocol_version=1 in the handshake. Discord
+		// responds with dave_protocol_version=1 and secure_frames_version=1,
+		// then sends MLS key packages (binary opcode 25) and proposals (27).
+		// We must send our key package (binary opcode 26) so Discord activates
+		// our audio stream. The E2EE frame encryption is handled by the DAVE
+		// session's EncryptFrame when IsActive() returns true.
+		if v.op4.DAVEProtocolVersion > 0 {
 			v.dave = NewDAVESession(v.UserID)
 
 			var err error
 			daveKPData, err = v.dave.GenerateKeyPackage()
 			if err != nil {
 				v.log(LogError, "DAVE key package generation failed: %s", err)
+			} else {
+				v.log(LogInformational, "DAVE key package generated (%d bytes)", len(daveKPData))
 			}
 		}
 

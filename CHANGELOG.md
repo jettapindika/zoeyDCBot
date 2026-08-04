@@ -5,6 +5,48 @@ Read `docs/feature-matrix.md` for the full feature inventory and status.
 
 ---
 
+## v0.1.4 — 2026-08-04
+
+**Critical fix: voice join timeout (DAVE protocol required)**
+
+Discord now requires DAVE (Discord Audio Video End-to-End Encryption) protocol
+version 1 for all voice connections. The bot was advertising `max_dave_protocol_version: 0`
+(no DAVE support), causing Discord to immediately close the voice websocket with
+close code **4017** (DAVE required). The connection never completed, resulting in
+"timeout waiting for voice" after 30 seconds.
+
+**Root cause:** The v0.1.3 fix disabled DAVE entirely to avoid audio corruption
+from the fork's incomplete MLS implementation. But Discord has since made DAVE v1
+mandatory — without it, voice connections are rejected at the handshake.
+
+**Fixes:**
+
+- **Advertise DAVE v1** — Voice handshake now sends `max_dave_protocol_version: 1`
+  so Discord accepts the connection.
+- **Enable DAVE MLS E2EE** — Re-enabled the fork's DAVE session creation and MLS
+  key package generation. The bot generates an MLS key package, sends it to Discord
+  (binary opcode 26), processes the MLS Welcome (opcode 30), derives the sender key,
+  and encrypts Opus frames with DAVE secure frames before transport encryption.
+  This is required for audio to be audible — Discord silently drops frames that
+  aren't DAVE-encrypted when `secure_frames_version: 1` is negotiated.
+- **Voice handshake timeout** — Increased `waitUntilConnected()` from 10s→30s with
+  100ms polling (was 1s). The DAVE handshake adds extra round-trips.
+- **Session ID wait** — Increased `open()` session ID wait from 1s→15s. Discord can
+  take several seconds to dispatch `VOICE_STATE_UPDATE` on first join.
+- **Fresh connection race** — `onVoiceServerUpdate` no longer calls `Close()` on a
+  fresh connection (wsConn/udpConn both nil). Previously `Close()` would race with
+  `open()`, setting `close=nil` and corrupting the handshake.
+- **Voice logging** — Routed discordgo fork logs through slog with token redaction.
+  Voice connections get `LogDebug` for full handshake visibility.
+- **4014/4017 distinction** — `wsListen` now logs the actual close code instead of
+  always saying "4014 manual disconnection".
+
+**Verification:** `go build` ✅ · `go vet` ✅ · `go test -race` (15/15) ✅ ·
+bot joins voice ✅ · audio audible ✅ (stereo on mobile, right-channel on desktop —
+likely a Discord client-side rendering issue, not a server-side bug)
+
+---
+
 ## v0.1.3 — 2026-08-04
 
 **Bug fixes:**
