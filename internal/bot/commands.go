@@ -95,8 +95,9 @@ func (b *Bot) commandDefinitions() []*discordgo.ApplicationCommand {
 	// Utility / engagement commands — always available.
 	cmds = append(cmds,
 		&discordgo.ApplicationCommand{Name: "reactionrole", Description: "Create a reaction role message", Options: []*discordgo.ApplicationCommandOption{
-			{Type: discordgo.ApplicationCommandOptionString, Name: "title", Description: "Embed title", Required: true},
+			{Type: discordgo.ApplicationCommandOptionString, Name: "title", Description: "Embed title", Required: false},
 			{Type: discordgo.ApplicationCommandOptionString, Name: "description", Description: "Embed description", Required: false},
+			{Type: discordgo.ApplicationCommandOptionString, Name: "bindings", Description: "emoji:role pairs (e.g. 🔥:@role 😀:123456). Space-separated, up to 20.", Required: true},
 		}},
 		&discordgo.ApplicationCommand{Name: "removerrole", Description: "Remove a reaction role message", Options: []*discordgo.ApplicationCommandOption{
 			{Type: discordgo.ApplicationCommandOptionString, Name: "message_id", Description: "Message ID to remove", Required: true},
@@ -188,7 +189,15 @@ func helpText(musicEnabled bool) string {
 	b.WriteString("• `/starboard` `set|disable` — configure starboard\n\n")
 
 	b.WriteString("**Prefix Commands** (`x!`)\n")
-	b.WriteString("Most commands also work with `x!` prefix: `x!ping`, `x!play`, `x!skip`, `x!queue`, `x!nowplaying`, `x!volume`, `x!loop`, `x!shuffle`, `x!remove`, `x!lyrics`, `x!move`, `x!pause`, `x!resume`, `x!stop`, `x!leave`, `x!help`, `x!version`, `x!clear`.\n")
+	b.WriteString("Every slash command also works with `x!` prefix:\n")
+	b.WriteString("• **AI:** `x!ping` `x!help` `x!version` `x!clear`\n")
+	b.WriteString("• **Admin:** `x!userinfo` `x!serverinfo` `x!purge` `x!kick` `x!ban` `x!timeout` `x!untimeout` `x!slowmode` `x!lock` `x!unlock`\n")
+	if musicEnabled {
+		b.WriteString("• **Music:** `x!play` `x!queue` `x!nowplaying` `x!skip` `x!stop` `x!pause` `x!resume` `x!leave` `x!volume` `x!loop` `x!shuffle` `x!remove` `x!lyrics` `x!move`\n")
+	} else {
+		b.WriteString("• **Music:** disabled (`MUSIC_ENABLED=false`)\n")
+	}
+	b.WriteString("• **Engagement:** `x!reactionrole` (alias `x!rr`) `x!removerrole` `x!starboard`\n\n")
 
 	return b.String()
 }

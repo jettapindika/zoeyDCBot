@@ -399,6 +399,12 @@ func (b *Bot) handlePrefixCommand(s *discordgo.Session, m *discordgo.MessageCrea
 		b.handlePrefixUserInfo(s, m, args)
 	case "serverinfo":
 		b.handlePrefixServerInfo(s, m)
+	case "reactionrole", "rr":
+		b.handlePrefixReactionRole(s, m, args)
+	case "removerrole":
+		b.handlePrefixRemoveRole(s, m, args)
+	case "starboard":
+		b.handlePrefixStarboard(s, m, args)
 	default:
 		_, _ = s.ChannelMessageSendEmbed(m.ChannelID, warnEmbed("Unknown Command",
 			fmt.Sprintf("`x!%s` is not a recognised command. Try `x!help`.", cmd)))

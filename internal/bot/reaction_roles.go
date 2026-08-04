@@ -87,17 +87,26 @@ func (b *Bot) cmdReactionRole(s *discordgo.Session, i *discordgo.InteractionCrea
 		return
 	}
 
+	title := ""
 	description := ""
 	var bindingStrs []string
 	for _, opt := range data.Options {
 		switch opt.Name {
+		case "title":
+			title = opt.StringValue()
 		case "description":
 			description = opt.StringValue()
 		case "bindings":
-			bindingStrs = append(bindingStrs, opt.StringValue())
+			// Split space-separated bindings into individual entries.
+			for _, b := range strings.Fields(opt.StringValue()) {
+				bindingStrs = append(bindingStrs, b)
+			}
 		}
 	}
 
+	if title == "" {
+		title = "🎭 Reaction Roles"
+	}
 	if description == "" {
 		description = "React to get a role!"
 	}
@@ -158,7 +167,7 @@ func (b *Bot) cmdReactionRole(s *discordgo.Session, i *discordgo.InteractionCrea
 	}
 
 	embed := &discordgo.MessageEmbed{
-		Title:       "🎭 Reaction Roles",
+		Title:       title,
 		Description: description + "\n\n" + bindingText,
 		Color:      colorBlue,
 		Footer: &discordgo.MessageEmbedFooter{

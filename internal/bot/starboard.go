@@ -129,31 +129,50 @@ func (b *Bot) cmdStarboard(s *discordgo.Session, i *discordgo.InteractionCreate)
 		return
 	}
 
-	channel := ""
-	threshold := 0
-	for _, opt := range data.Options {
-		switch opt.Name {
-		case "channel":
-			if ch, ok := opt.Value.(*discordgo.Channel); ok {
-				channel = ch.ID
+	// Handle subcommands: "set" and "disable".
+	if len(data.Options) == 0 {
+		b.respondEphemeralEmbed(s, i, errEmbed("Missing Subcommand", "Use `/starboard set` or `/starboard disable`."))
+		return
+	}
+
+	sub := data.Options[0]
+	switch sub.Name {
+	case "set":
+		channel := ""
+		threshold := 0
+		for _, opt := range sub.Options {
+			switch opt.Name {
+			case "channel":
+				if ch, ok := opt.Value.(*discordgo.Channel); ok {
+					channel = ch.ID
+				}
+			case "threshold":
+				threshold = int(opt.IntValue())
 			}
-		case "threshold":
-			threshold = int(opt.IntValue())
 		}
-	}
 
-	if channel != "" {
+		if channel == "" {
+			b.respondEphemeralEmbed(s, i, errEmbed("Missing Channel", "You must provide a starboard channel."))
+			return
+		}
 		b.cfg.StarboardChannelID = channel
-	}
-	if threshold > 0 {
-		// Recreate the engine with the new threshold.
-		b.starboard = starboard.New(threshold, "⭐")
-	}
+		if threshold > 0 {
+			b.starboard = starboard.New(threshold, "⭐")
+		}
 
-	embed := successEmbed("⭐ Starboard Configured", fmt.Sprintf(
-		"Channel: <#%s>\nThreshold: %d stars\nEmoji: ⭐",
-		b.cfg.StarboardChannelID,
-		b.starboard.Threshold(),
-	))
-	b.respondEphemeralEmbed(s, i, embed)
+		embed := successEmbed("⭐ Starboard Configured", fmt.Sprintf(
+			"Channel: <#%s>\nThreshold: %d stars\nEmoji: ⭐",
+			b.cfg.StarboardChannelID,
+			b.starboard.Threshold(),
+		))
+		b.respondEphemeralEmbed(s, i, embed)
+
+	case "disable":
+		b.cfg.StarboardChannelID = ""
+		embed := successEmbed("⭐ Starboard Disabled", "Starboard has been turned off.")
+		b.respondEphemeralEmbed(s, i, embed)
+
+	default:
+		b.respondEphemeralEmbed(s, i, errEmbed("Unknown Subcommand", "Use `/starboard set` or `/starboard disable`."))
+	}
 }
